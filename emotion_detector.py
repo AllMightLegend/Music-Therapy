@@ -9,13 +9,16 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 try:
     import cv2  # noqa: F401
     CV2_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
+    # OSError catches missing system libraries like libGL.so.1
     CV2_AVAILABLE = False
 
 try:
     from deepface import DeepFace
     DEEPFACE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError, Exception):
+    # OSError catches missing system libraries that DeepFace depends on
+    # Exception catches any other initialization errors
     DEEPFACE_AVAILABLE = False
 
 
@@ -54,9 +57,9 @@ def analyze_frame(frame) -> Optional[str]:
             result = result[0]
         dominant = result.get("dominant_emotion")
         return str(dominant) if dominant else None
-    except Exception as e:
-        # Log the error for debugging (only in development)
-        import sys
-        if hasattr(sys, '_getframe'):  # Only log if we can detect we're in a debug context
-            pass  # Suppress in production
+    except (OSError, RuntimeError, Exception) as e:
+        # OSError: Missing system libraries (libGL.so.1, etc.)
+        # RuntimeError: DeepFace model loading failures
+        # Exception: Any other errors during analysis
+        # Suppress errors in production to avoid cluttering logs
         return None
