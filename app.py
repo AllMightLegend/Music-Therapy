@@ -1,3 +1,11 @@
+import os
+
+# Set environment variables BEFORE any OpenCV imports to prevent libGL.so.1 errors
+# This is critical for Streamlit Cloud deployment (headless Linux environment)
+os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "0")
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("OPENCV_VIDEOIO_PRIORITY_MSMF", "0")
+
 from datetime import date
 from typing import Optional, Dict, Any, List, Tuple
 from queue import Queue, Empty, Full
@@ -38,15 +46,20 @@ try:
     import cv2 as _cv2  # type: ignore[assignment]
 
     cv2 = _cv2
-except ImportError as exc:
+except (ImportError, OSError) as exc:
+    # OSError catches libGL.so.1 and other system library errors
     _dependency_errors.append(("opencv-python-headless", str(exc)))
+    cv2 = None
 
 try:
     from emotion_detector import analyze_frame as _analyze_frame
 
     analyze_frame = _analyze_frame
-except Exception as exc:  # noqa: BLE001 - expose exact failure to the UI
+except (ImportError, OSError, Exception) as exc:  # noqa: BLE001 - expose exact failure to the UI
+    # OSError catches libGL.so.1 and other system library errors
+    # This is common on Streamlit Cloud where system libraries are limited
     _dependency_errors.append(("emotion_detector", str(exc)))
+    analyze_frame = None
 
 
 st.set_page_config(page_title="Music Therapy Recommender", layout="wide")
@@ -768,8 +781,12 @@ def render_new_session(profile: Dict[str, Any]) -> None:
 
             if not detector_available:
                 st.error(
-                    "The emotion detection model failed to load. "
-                    "Double-check the DeepFace / TensorFlow installation."
+                    "⚠️ Emotion detection is currently unavailable. "
+                    "This is common on Streamlit Cloud due to system library limitations. "
+                    "Please use **Manual Input** mode instead, or try deploying to a platform with full system access."
+                )
+                st.info(
+                    "💡 **Tip**: The manual mood input feature works perfectly and provides the same playlist recommendations!"
                 )
 
             snapshot = st.camera_input("Capture a snapshot", key="webcam_snapshot")

@@ -34,9 +34,10 @@ Streamlit Cloud is the easiest way to deploy your Streamlit app. Follow these st
 - Consider using a `.streamlit/config.toml` to increase timeout (see below)
 
 ⚠️ **Webcam Functionality:**
-- `streamlit-webrtc` webcam features may have limited functionality on Streamlit Cloud
-- The app will fall back to snapshot mode if real-time streaming isn't available
-- This is normal and expected
+- `streamlit-webrtc` webcam features **will NOT work** on Streamlit Cloud
+- OpenCV requires system libraries (libGL.so.1) that aren't available in Streamlit Cloud's container
+- **Emotion detection via webcam/snapshot will fail** - this is a known limitation
+- **Solution**: Use **Manual Input** mode instead - it works perfectly and provides the same functionality
 
 ✅ **What Works:**
 - Manual mood input ✅
@@ -64,12 +65,22 @@ gatherUsageStats = false
 - Solution: Try deploying again. TensorFlow installation can be slow.
 - Alternative: Consider using lighter ML models if DeepFace is too heavy.
 
+**Issue: `libGL.so.1: cannot open shared object file`**
+- This is **expected** on Streamlit Cloud. OpenCV requires system libraries that aren't available.
+- The app is designed to handle this gracefully - use **Manual Input** mode instead.
+- Webcam/snapshot emotion detection won't work on Streamlit Cloud due to these limitations.
+
+**Issue: Emotion detection model failed to load**
+- This is related to the OpenCV/system library issue above.
+- **Solution**: Use the **Manual Input** button - it provides the same playlist recommendations without requiring emotion detection.
+
 **Issue: Webcam doesn't work**
-- This is expected on Streamlit Cloud. Use the snapshot feature instead.
+- This is expected on Streamlit Cloud. The app will show clear error messages.
+- **Use Manual Input mode** - it's fully functional and provides the same experience.
 
 **Issue: App is slow**
-- DeepFace model loading takes time on first use
-- Subsequent uses will be faster due to caching
+- DeepFace model loading takes time on first use (if it loads at all)
+- Manual input mode is instant and doesn't require ML models
 
 ## Alternative Deployment Options
 
