@@ -959,15 +959,19 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     chart_cols = st.columns(2)
     with chart_cols[0]:
         st.markdown('<div class="chart-frame"><h4>Mood Trajectory</h4>', unsafe_allow_html=True)
-        fig, ax = plt.subplots(figsize=(6, 3))
+        fig, ax = plt.subplots(figsize=(6, 3), facecolor="none")
+        ax.set_facecolor("none")
         ax.plot(history_df["timestamp"], mood_numeric, color="#3a60e6", linewidth=2.3, marker="o")
         ax.fill_between(history_df["timestamp"], mood_numeric, color="#3a60e6", alpha=0.12)
-        ax.set_ylabel("Valence-Arousal blend")
+        ax.set_ylabel("Valence-Arousal blend", color="white")
         ax.set_ylim(-2.2, 1.4)
         ax.grid(axis="y", linestyle="--", alpha=0.25)
-        ax.tick_params(axis="x", rotation=20, labelsize=8)
+        ax.tick_params(axis="x", rotation=20, labelsize=8, colors="white")
+        ax.tick_params(axis="y", labelsize=8, colors="white")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_color("white")
+        ax.spines["left"].set_color("white")
         st.pyplot(fig, transparent=True)
         plt.close(fig)
         st.markdown("</div>", unsafe_allow_html=True)
@@ -975,10 +979,11 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     with chart_cols[1]:
         st.markdown('<div class="chart-frame"><h4>Feedback Mix</h4>', unsafe_allow_html=True)
         feedback_counts = history_df["feedback_emoji"].value_counts()
-        fig, ax = plt.subplots(figsize=(4, 3.2))
+        fig, ax = plt.subplots(figsize=(4, 3.2), facecolor="none")
+        ax.set_facecolor("none")
         if feedback_counts.empty:
             ax.axis("off")
-            ax.text(0.5, 0.5, "No feedback yet", ha="center", va="center", fontsize=10)
+            ax.text(0.5, 0.5, "No feedback yet", ha="center", va="center", fontsize=10, color="white")
         else:
             colors = ["#3a60e6", "#8fa5ff", "#d9e0ff"]
             wedges, texts, autotexts = ax.pie(
@@ -988,12 +993,14 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
                 startangle=90,
                 colors=colors[: len(feedback_counts)],
                 wedgeprops={"linewidth": 1, "edgecolor": "white"},
-                textprops={"fontsize": 9},
+                textprops={"fontsize": 9, "color": "white"},
             )
             centre_circle = plt.Circle((0, 0), 0.55, fc="white")
             fig.gca().add_artist(centre_circle)
             for autotext in autotexts:
-                autotext.set_color("#1f2933")
+                autotext.set_color("white")
+            for text in texts:
+                text.set_color("white")
         ax.axis("equal")
         st.pyplot(fig, transparent=True)
         plt.close(fig)
@@ -1001,17 +1008,21 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
 
     st.markdown('<div class="chart-frame"><h4>Weekly Cadence</h4>', unsafe_allow_html=True)
     weekly_sessions = history_df.set_index("timestamp").resample("W").size()
-    fig, ax = plt.subplots(figsize=(10, 3.2))
+    fig, ax = plt.subplots(figsize=(10, 3.2), facecolor="none")
+    ax.set_facecolor("none")
     if weekly_sessions.empty:
         ax.axis("off")
-        ax.text(0.5, 0.5, "Sessions will appear here once logged.", ha="center", va="center", fontsize=10)
+        ax.text(0.5, 0.5, "Sessions will appear here once logged.", ha="center", va="center", fontsize=10, color="white")
     else:
         ax.bar(weekly_sessions.index, weekly_sessions.values, width=5, color="#6a85f7")
-        ax.set_ylabel("Sessions per week")
-        ax.tick_params(axis="x", rotation=20, labelsize=8)
+        ax.set_ylabel("Sessions per week", color="white")
+        ax.tick_params(axis="x", rotation=20, labelsize=8, colors="white")
+        ax.tick_params(axis="y", labelsize=8, colors="white")
         ax.grid(axis="y", linestyle="--", alpha=0.25)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_color("white")
+        ax.spines["left"].set_color("white")
     st.pyplot(fig, transparent=True)
     plt.close(fig)
     st.markdown("</div>", unsafe_allow_html=True)
