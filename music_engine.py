@@ -4,6 +4,13 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
+# Genres to exclude from recommendations
+DENY_LIST = [
+    'hip-hop', 'rap', 'metal', 'experimental', 'electronic', 'idm',
+    'rock', 'punk', 'hardcore', 'techno', 'house', 'trance', 'industrial',
+    'ebm', 'goth', 'noise'
+]
+
 
 @st.cache_data(show_spinner=False)
 def load_music_data(csv_path: str = "muse_v3.csv") -> pd.DataFrame:
@@ -60,6 +67,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
             "valence_tags": ["valence_tags", "valence_tag", "valence"],
             "arousal_tags": ["arousal_tags", "arousal_tag", "arousal", "energy"],
             "spotify_id": ["spotify_id", "id", "spotify_uri", "uri"],
+            "lastfm_tags": ["lastfm_tags", "tags", "genre", "genres"],
         },
     )
 
@@ -89,7 +97,15 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
 
     # Deduplicate by spotify_id to avoid repeats
     if "spotify_id" in df.columns:
-        df = df.drop_duplicates(subset=["spotify_id"])  
+        df = df.drop_duplicates(subset=["spotify_id"])
+
+    # Clean the lastfm_tags column for filtering
+    # Ensure it's a string and fill NaNs with empty string
+    if "lastfm_tags" in df.columns:
+        df["lastfm_tags"] = df["lastfm_tags"].fillna("").astype(str).str.lower()
+    else:
+        # If lastfm_tags doesn't exist, create an empty column
+        df["lastfm_tags"] = ""
 
     return df
 
@@ -98,6 +114,37 @@ class MusicEngine:
     def __init__(self, csv_path: str = "muse_v3.csv") -> None:
         raw = load_music_data(csv_path)
         self.df = preprocess_data(raw)
+        # Filter out inappropriate genres after preprocessing
+        if not self.df.empty:
+            self.df = self._filter_genres(self.df, DENY_LIST)
+            if not self.df.empty:
+                st.success(f"Music engine loaded with {len(self.df)} child-friendly tracks.")
+            else:
+                st.warning("Warning: The genre filter removed all songs. Please check your DENY_LIST.")
+
+    def _filter_genres(self, df: pd.DataFrame, deny_list: list) -> pd.DataFrame:
+        """
+        Filters the DataFrame to exclude songs containing denied genres.
+        This runs once at initialization.
+        """
+        if df.empty or "lastfm_tags" not in df.columns:
+            return df
+
+        # Create a regex pattern that matches any of the denied genres
+        # e.g., 'hip-hop|rap|metal'
+        denied_pattern = '|'.join(deny_list)
+
+        # Filter the DataFrame:
+        # ~df[...] means "not" - keep rows that DO NOT match the pattern.
+        original_count = len(df)
+        filtered_df = df[~df["lastfm_tags"].str.contains(denied_pattern, case=False, na=False)]
+        new_count = len(filtered_df)
+
+        if original_count > 0:
+            filtered_out = original_count - new_count
+            print(f"Filtered out {filtered_out} tracks based on genre. ({new_count} remaining)")
+
+        return filtered_df
 
     def is_ready(self) -> bool:
         return (not self.df.empty) and all(
