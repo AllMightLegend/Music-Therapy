@@ -1,18 +1,21 @@
 # Core app
-streamlit
+streamlit>=1.28.0
 
 # Realtime webcam
-streamlit-webrtc
-av
-opencv-python-headless
+streamlit-webrtc>=0.44.0
+av>=10.0.0
+opencv-python-headless>=4.8.0
 
 # Data & ML
-pandas
-numpy
-scikit-learn
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
 
-matplotlib
+# Emotion detection
+deepface>=0.0.79
+tensorflow>=2.13.0
+tf-keras>=2.13.0
 
-deepface
-tensorflow
-tf-keras
+# Image processing
+Pillow>=10.0.0

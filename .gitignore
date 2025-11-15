@@ -38,7 +38,9 @@ venv.bak/
 .history/
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
+.streamlit/credentials.toml
+# Keep config.toml - it should be committed
 
 # Database files (SQLite)
 *.db

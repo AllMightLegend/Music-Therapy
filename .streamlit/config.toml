@@ -1,0 +1,19 @@
+[server]
+# Increase upload size limit for CSV files
+maxUploadSize = 200
+maxMessageSize = 200
+
+# Enable file watcher for development
+fileWatcherType = "auto"
+
+[browser]
+# Disable usage stats collection
+gatherUsageStats = false
+
+[theme]
+# You can customize theme here if needed
+# primaryColor = "#3A86FF"
+# backgroundColor = "#ffffff"
+# secondaryBackgroundColor = "#f0f2f6"
+# textColor = "#262730"
+
