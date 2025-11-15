@@ -1,0 +1,18 @@
+# Core app
+streamlit
+
+# Realtime webcam
+streamlit-webrtc
+av
+opencv-python-headless
+
+# Data & ML
+pandas
+numpy
+scikit-learn
+
+matplotlib
+
+deepface
+tensorflow
+tf-keras
