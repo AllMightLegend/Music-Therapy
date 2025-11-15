@@ -717,32 +717,47 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         detector_available = analyze_frame is not None
 
         if realtime_available and detector_available:
-            emotion_queue = st.session_state["_emotion_queue"]
+            emotion_queue = st.session_state.get("_emotion_queue")
             if not isinstance(emotion_queue, Queue):
                 emotion_queue = Queue(maxsize=8)
                 st.session_state["_emotion_queue"] = emotion_queue
-
+            
+            # Use a module-level variable for throttling (callbacks can't use session state reliably)
+            import time
+            _last_analysis = {"time": 0}
+            
             def video_frame_callback(frame: "av.VideoFrame") -> "av.VideoFrame":  # type: ignore[name-defined]
                 av_frame = frame.to_ndarray(format="bgr24")
-                emotion = normalize_emotion(analyze_frame(av_frame))
-                if emotion:
-                    try:
-                        emotion_queue.put_nowait(emotion)
-                    except Full:
-                        pass
-                    if cv2 is not None:
-                        cv2.putText(
-                            av_frame,
-                            emotion.title(),
-                            (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1.0,
-                            (0, 255, 0),
-                            2,
-                            cv2.LINE_AA,
-                        )
+                
+                # Throttle emotion detection: only analyze every 1.5 seconds
+                # DeepFace is computationally expensive and can't run on every frame
+                current_time = time.time()
+                if current_time - _last_analysis["time"] >= 1.5:  # Analyze once per 1.5 seconds
+                    _last_analysis["time"] = current_time
+                    emotion = analyze_frame(av_frame)
+                    if emotion:
+                        emotion = normalize_emotion(emotion)
+                        if emotion:
+                            try:
+                                emotion_queue.put_nowait(emotion)
+                            except Full:
+                                pass
+                            if cv2 is not None:
+                                cv2.putText(
+                                    av_frame,
+                                    emotion.title(),
+                                    (10, 30),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    1.0,
+                                    (0, 255, 0),
+                                    2,
+                                    cv2.LINE_AA,
+                                )
+                
                 return av.VideoFrame.from_ndarray(av_frame, format="bgr24")
 
+            st.info("💡 **Tip**: Emotion detection runs every 1.5 seconds. Please face the camera and wait a few seconds for the first detection.")
+            
             ctx = webrtc_streamer(
                 key="webcam",
                 video_frame_callback=video_frame_callback,
