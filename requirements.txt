@@ -12,10 +12,9 @@ numpy>=1.24.0
 scikit-learn>=1.3.0
 matplotlib>=3.7.0
 
-# Emotion detection
-deepface>=0.0.79
-tensorflow>=2.13.0
-tf-keras>=2.13.0
+# Emotion detection - Hume AI SDK
+hume[microphone]>=0.7.0
+python-dotenv>=1.0.0
 
 # Image processing
 Pillow>=10.0.0

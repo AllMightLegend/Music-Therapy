@@ -1,5 +1,12 @@
 import os
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Set environment variables BEFORE any OpenCV imports to prevent libGL.so.1 errors
 # This is critical for Streamlit Cloud deployment (headless Linux environment)
 os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "0")
@@ -73,7 +80,7 @@ TARGET_MOODS: List[str] = getattr(
     ["calm", "happy", "focused", "energized", "relaxed"],
 )
 
-MOOD_OPTIONS = ["happy", "sad", "angry", "fear", "surprise", "disgust", "neutral"]
+MOOD_OPTIONS = ["happy", "sad", "angry", "fearful", "surprised", "loving", "energized", "anxious", "calm", "focused"]
 
 
 def normalize_emotion(value: Optional[str]) -> Optional[str]:
@@ -811,18 +818,26 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                     frame_rgb = np.array(image)
                     if frame_rgb.ndim == 2:  # grayscale fallback
                         frame_rgb = np.stack([frame_rgb] * 3, axis=-1)
+                    # Convert RGB to BGR for OpenCV convention (analyze_frame expects BGR)
                     frame_bgr = frame_rgb[:, :, ::-1]
-                    emotion = normalize_emotion(analyze_frame(frame_bgr))
+                    
+                    with st.spinner("🔍 Analyzing emotion... (this may take a few seconds)"):
+                        emotion = normalize_emotion(analyze_frame(frame_bgr))
                     if emotion:
                         st.session_state["last_detected_emotion"] = emotion
                         st.session_state["_last_detected_tick"] = (
                             st.session_state.get("_last_detected_tick", 0) + 1
                         )
+                        # Clear the snapshot so it doesn't get reprocessed
+                        st.session_state["webcam_snapshot"] = None
                         st.success(f"Detected: {emotion.title()}")
+                        # Force rerun to update the display
+                        trigger_rerun()
                     else:
                         st.info("Couldn't determine the mood from that snapshot. Try another capture.")
                 except Exception as exc:  # noqa: BLE001 - show friendly error
                     st.error(f"Snapshot processing failed: {exc}")
+
 
         last = st.session_state.get("last_detected_emotion")
         if last:
