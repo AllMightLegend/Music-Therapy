@@ -812,59 +812,72 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 )
 
             snapshot = st.camera_input("Capture a snapshot", key="webcam_snapshot")
+            
+            # Process snapshot if available and not already processed
             if snapshot is not None and detector_available:
-                try:
-                    image = Image.open(snapshot)
-                    frame_rgb = np.array(image)
-                    if frame_rgb.ndim == 2:  # grayscale fallback
-                        frame_rgb = np.stack([frame_rgb] * 3, axis=-1)
-                    # Convert RGB to BGR for OpenCV convention (analyze_frame expects BGR)
-                    frame_bgr = frame_rgb[:, :, ::-1]
-                    
-                    with st.spinner("🔍 Analyzing emotion... (this may take a few seconds)"):
-                        emotion = normalize_emotion(analyze_frame(frame_bgr))
-                    if emotion:
-                        st.session_state["last_detected_emotion"] = emotion
-                        st.session_state["_last_detected_tick"] = (
-                            st.session_state.get("_last_detected_tick", 0) + 1
-                        )
-                        # Clear the snapshot so it doesn't get reprocessed
-                        st.session_state["webcam_snapshot"] = None
-                        st.success(f"Detected: {emotion.title()}")
-                        # Force rerun to update the display
-                        trigger_rerun()
-                    else:
-                        st.info("Couldn't determine the mood from that snapshot. Try another capture.")
-                except Exception as exc:  # noqa: BLE001 - show friendly error
-                    st.error(f"Snapshot processing failed: {exc}")
+                # Create a unique key for this snapshot to detect new captures
+                snapshot_id = st.session_state.get("_snapshot_id", 0)
+                current_snapshot_key = f"snapshot_{id(snapshot)}"
+                last_processed_key = st.session_state.get("_last_snapshot_key", None)
+                
+                # Only process if this is a new snapshot
+                if current_snapshot_key != last_processed_key:
+                    try:
+                        image = Image.open(snapshot)
+                        frame_rgb = np.array(image)
+                        if frame_rgb.ndim == 2:  # grayscale fallback
+                            frame_rgb = np.stack([frame_rgb] * 3, axis=-1)
+                        # Convert RGB to BGR for OpenCV convention (analyze_frame expects BGR)
+                        frame_bgr = frame_rgb[:, :, ::-1]
+                        
+                        with st.spinner("🔍 Analyzing emotion... (this may take a few seconds)"):
+                            emotion = normalize_emotion(analyze_frame(frame_bgr))
+                        
+                        # Mark this snapshot as processed
+                        st.session_state["_last_snapshot_key"] = current_snapshot_key
+                        
+                        if emotion:
+                            st.session_state["last_detected_emotion"] = emotion
+                            st.session_state["_last_detected_tick"] = (
+                                st.session_state.get("_last_detected_tick", 0) + 1
+                            )
+                            st.success(f"✅ Detected: **{emotion.title()}**")
+                        else:
+                            st.warning("⚠️ Couldn't determine the mood from that snapshot. Try another capture.")
+                    except Exception as exc:  # noqa: BLE001 - show friendly error
+                        st.error(f"Snapshot processing failed: {exc}")
 
-
+        # Display detected emotion prominently
         last = st.session_state.get("last_detected_emotion")
         if last:
-            st.write(f"Detected: {last.title()}")
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.info(f"🎭 **Current Detected Mood**: {last.title()}")
+            with col2:
+                if st.button("Clear Detection", key="clear_detection"):
+                    st.session_state["last_detected_emotion"] = None
+                    st.session_state["_last_snapshot_key"] = None
+                    st.rerun()
         else:
-            st.write("Detected: None")
+            st.info("📊 No emotion detected yet. Capture a snapshot to get started!")
 
         normalized_last = normalize_emotion(last)
         if normalized_last and normalized_last != last:
-            st.warning(
-                f"Detected mood '{last}' is not part of the supported set. Defaulting to neutral."
-            )
+            # The emotion was normalized, display the normalized version
             st.session_state["last_detected_emotion"] = normalized_last
 
-        lock_disabled = not normalized_last
-        if st.button(
-            "Lock in Mood and Get Recommendation",
-            key="webcam_lock",
-            disabled=lock_disabled,
-        ):
+        # Automatically lock in the mood when detected
+        if normalized_last and not st.session_state.get("detected_mood"):
             st.session_state["detected_mood"] = normalized_last
-            trigger_rerun()
-
-        if lock_disabled:
-            st.caption(
-                "Keep the child in frame for a moment so we can detect a mood before locking it in."
-            )
+        
+        lock_button_label = f"Use {normalized_last.title()} as Starting Mood" if normalized_last else "Waiting for Emotion Detection..."
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**Detected Mood**: {normalized_last.title() if normalized_last else 'None'}")
+        with col2:
+            if st.button("Use This Mood", key="webcam_lock", disabled=not normalized_last):
+                st.session_state["detected_mood"] = normalized_last
+                st.success(f"✅ Using {normalized_last.title()} as starting mood!")
 
     detected = st.session_state.get("detected_mood")
     if detected:
