@@ -101,12 +101,11 @@ def _submit_job(frame_bytes: bytes) -> Optional[str]:
         import requests
         import json as _json
 
-        # Hume expects multipart/form-data with the image file and a JSON-encoded
-        # `models` field. Using `json=` together with `files=` can produce an
-        # unexpected request shape, so send `models` as a string in `data`.
-        data = {"models": _json.dumps({"face": {}})}
-
-        # Try a few times on transient errors
+        # Many Hume users submit the job with a JSON `models` body while also
+        # attaching the file. Historically this worked for this project; some
+        # server-side parsers reject a separate `models` form field. To restore
+        # the previous working behavior, send the `models` as JSON payload and
+        # include the file. Keep network retry behavior for transient failures.
         max_attempts = 3
         backoff = 0.5
         for attempt in range(1, max_attempts + 1):
@@ -115,7 +114,7 @@ def _submit_job(frame_bytes: bytes) -> Optional[str]:
                     HUME_BATCH_JOBS_URL,
                     headers={"X-Hume-Api-Key": HUME_API_KEY, "Accept": "application/json"},
                     files={"file": ("frame.jpg", frame_bytes, "image/jpeg")},
-                    data=data,
+                    json={"models": {"face": {}}},
                     timeout=15,
                 )
 
@@ -129,18 +128,16 @@ def _submit_job(frame_bytes: bytes) -> Optional[str]:
                     if job_id:
                         print(f"[emotion_detector] Job ID: {job_id}")
                         return job_id
-                    # If API returned 202 but no job id, log body and treat as failure
                     print(f"[emotion_detector] Submission response missing job id: {data_json}")
                     return None
                 else:
-                    # Log body for debugging (400/500 etc.)
                     body = None
                     try:
                         body = response.text
                     except Exception:
                         body = "<unreadable>"
                     print(f"[emotion_detector] Job submission failed (status={response.status_code}): {body}")
-                    # On 5xx retry, on 4xx don't retry as it's likely a client error
+                    # Retry on server errors
                     if 500 <= response.status_code < 600 and attempt < max_attempts:
                         time.sleep(backoff)
                         backoff *= 2
