@@ -4,17 +4,18 @@ streamlit>=1.28.0
 # Realtime webcam
 streamlit-webrtc>=0.44.0
 av>=10.0.0
-opencv-python-headless>=4.8.0
+opencv-python-headless==4.8.1.78
 
 # Data & ML
 pandas>=2.0.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0.0
 scikit-learn>=1.3.0
 matplotlib>=3.7.0
 
-# Emotion detection - Hume AI SDK
-hume[microphone]>=0.7.0
+# Emotion detection - Hume AI WebSocket API
 python-dotenv>=1.0.0
+hume>=0.7.0
+websockets>=12.0
 
 # Image processing
 Pillow>=10.0.0

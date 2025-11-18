@@ -386,7 +386,7 @@ def render_theme_controls(container: "st.delta_generator.DeltaGenerator") -> Non
 
 
 def trigger_rerun() -> None:
-    rerun_fn = getattr(st, "experimental_rerun", None) or getattr(st, "rerun", None)
+    rerun_fn = getattr(st, "rerun", None) or getattr(st, "experimental_rerun", None)
     if rerun_fn:
         rerun_fn()  # type: ignore[operator]
     else:
@@ -423,6 +423,56 @@ def logout() -> None:
         "current_playlist",
     ]:
         st.session_state.pop(key, None)
+
+
+def validate_email(email: str) -> tuple[bool, str]:
+    """
+    Validate email format.
+    Returns (is_valid, error_message).
+    """
+    import re
+    email = email.strip()
+    if not email:
+        return False, "Email is required."
+    # Stricter email regex: local@domain.extension
+    # local part: alphanumeric, dots, hyphens, underscores (no @ allowed)
+    # domain: alphanumeric and hyphens (no @ allowed)
+    # TLD: 2+ letters
+    pattern = r'^[a-zA-Z0-9._%-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email):
+        return False, "Email format is invalid. Use example@domain.com."
+    # Additional check: only one @ symbol allowed
+    if email.count('@') != 1:
+        return False, "Email format is invalid. Use example@domain.com."
+    if len(email) > 255:
+        return False, "Email is too long (max 255 characters)."
+    return True, ""
+
+
+def validate_password(password: str) -> tuple[bool, str]:
+    """
+    Validate password strength.
+    Requirements:
+    - At least 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+    - At least one special character (!@#$%^&*)
+    Returns (is_valid, error_message).
+    """
+    if not password:
+        return False, "Password is required."
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter."
+    if not any(c.islower() for c in password):
+        return False, "Password must contain at least one lowercase letter."
+    if not any(c.isdigit() for c in password):
+        return False, "Password must contain at least one digit (0-9)."
+    if not any(c in "!@#$%^&*" for c in password):
+        return False, "Password must contain at least one special character (!@#$%^&*)."
+    return True, ""
 
 
 def require_authentication() -> bool:
@@ -480,24 +530,30 @@ def render_login_signup() -> None:
             submitted = st.form_submit_button("Log In")
 
             if submitted:
-                if not email or not password:
-                    st.error("Please provide both email and password.")
+                # Validate email format
+                email_valid, email_msg = validate_email(email)
+                if not email_valid:
+                    st.error(email_msg)
                 else:
-                    if role_label == "Therapist":
-                        user = database.authenticate_therapist(email, password)
-                        role = "therapist"
+                    # For login, password is just checked for presence (strict validation on signup)
+                    if not password:
+                        st.error("Password is required.")
                     else:
-                        user = database.authenticate_parent(email, password)
-                        role = "parent"
+                        if role_label == "Therapist":
+                            user = database.authenticate_therapist(email, password)
+                            role = "therapist"
+                        else:
+                            user = database.authenticate_parent(email, password)
+                            role = "parent"
 
-                    if user:
-                        st.session_state["user_id"] = user["id"]
-                        st.session_state["user_role"] = role
-                        st.session_state["user_display_name"] = user["name"]
-                        st.success("Logged in successfully.")
-                        trigger_rerun()
-                    else:
-                        st.error("Invalid credentials. Please try again.")
+                        if user:
+                            st.session_state["user_id"] = user["id"]
+                            st.session_state["user_role"] = role
+                            st.session_state["user_display_name"] = user["name"]
+                            st.success("Logged in successfully.")
+                            trigger_rerun()
+                        else:
+                            st.error("Invalid credentials. Please try again.")
 
     with tabs[1]:
         with st.form("therapist_signup_form"):
@@ -513,24 +569,33 @@ def render_login_signup() -> None:
             if submitted:
                 if not all([name, email, password, confirm, practice_name]):
                     st.error("Please complete all required fields.")
-                elif password != confirm:
-                    st.error("Passwords do not match.")
                 else:
-                    try:
-                        therapist_id = database.create_therapist(
-                            name=name,
-                            email=email,
-                            password=password,
-                            practice_name=practice_name,
-                            license_number=license_number or None,
-                        )
-                        st.session_state["user_id"] = therapist_id
-                        st.session_state["user_role"] = "therapist"
-                        st.session_state["user_display_name"] = name
-                        st.success("Account created! Redirecting to your dashboard.")
-                        trigger_rerun()
-                    except ValueError as exc:
-                        st.error(str(exc))
+                    # Validate email format
+                    email_valid, email_msg = validate_email(email)
+                    if not email_valid:
+                        st.error(email_msg)
+                    elif password != confirm:
+                        st.error("Passwords do not match.")
+                    else:
+                        pwd_valid, pwd_msg = validate_password(password)
+                        if not pwd_valid:
+                            st.error(pwd_msg)
+                        else:
+                            try:
+                                therapist_id = database.create_therapist(
+                                    name=name,
+                                    email=email,
+                                    password=password,
+                                    practice_name=practice_name,
+                                    license_number=license_number or None,
+                                )
+                                st.session_state["user_id"] = therapist_id
+                                st.session_state["user_role"] = "therapist"
+                                st.session_state["user_display_name"] = name
+                                st.success("Account created! Redirecting to your dashboard.")
+                                trigger_rerun()
+                            except ValueError as exc:
+                                st.error(str(exc))
 
     with tabs[2]:
         st.subheader("Complete Your Parent Invitation")
@@ -550,15 +615,20 @@ def render_login_signup() -> None:
                 elif password != confirm:
                     st.error("Passwords do not match.")
                 else:
-                    try:
-                        parent = database.complete_parent_invite(token.strip(), name, password)
-                        st.session_state["user_id"] = parent["id"]
-                        st.session_state["user_role"] = "parent"
-                        st.session_state["user_display_name"] = parent["name"]
-                        st.success("Invitation accepted! Welcome aboard.")
-                        trigger_rerun()
-                    except ValueError as exc:
-                        st.error(str(exc))
+                    # Validate password strength
+                    pwd_valid, pwd_msg = validate_password(password)
+                    if not pwd_valid:
+                        st.error(pwd_msg)
+                    else:
+                        try:
+                            parent = database.complete_parent_invite(token.strip(), name, password)
+                            st.session_state["user_id"] = parent["id"]
+                            st.session_state["user_role"] = "parent"
+                            st.session_state["user_display_name"] = parent["name"]
+                            st.success("Invitation accepted! Welcome aboard.")
+                            trigger_rerun()
+                        except ValueError as exc:
+                            st.error(str(exc))
 
 
 def render_child_selection() -> None:
@@ -726,29 +796,41 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         if realtime_available and detector_available:
             emotion_queue = st.session_state.get("_emotion_queue")
             if not isinstance(emotion_queue, Queue):
-                emotion_queue = Queue(maxsize=8)
+                emotion_queue = Queue(maxsize=12)
                 st.session_state["_emotion_queue"] = emotion_queue
+            
+            # Initialize emotion history for smoothing
+            if "_emotion_history" not in st.session_state:
+                st.session_state["_emotion_history"] = []
             
             # Use a module-level variable for throttling (callbacks can't use session state reliably)
             import time
+            from collections import Counter
             _last_analysis = {"time": 0}
             
             def video_frame_callback(frame: "av.VideoFrame") -> "av.VideoFrame":  # type: ignore[name-defined]
                 av_frame = frame.to_ndarray(format="bgr24")
                 
-                # Throttle emotion detection: only analyze every 1.5 seconds
-                # DeepFace is computationally expensive and can't run on every frame
+                # Throttle emotion detection: analyze every 1 second for more responsive detection
                 current_time = time.time()
-                if current_time - _last_analysis["time"] >= 1.5:  # Analyze once per 1.5 seconds
+                if current_time - _last_analysis["time"] >= 1.0:  # Analyze once per second
                     _last_analysis["time"] = current_time
                     emotion = analyze_frame(av_frame)
                     if emotion:
                         emotion = normalize_emotion(emotion)
                         if emotion:
+                            print(f"[app.py] Adding to queue: {emotion}")
                             try:
                                 emotion_queue.put_nowait(emotion)
+                                print(f"[app.py] Queue size: {emotion_queue.qsize()}")
                             except Full:
-                                pass
+                                # Remove oldest and add new
+                                try:
+                                    emotion_queue.get_nowait()
+                                    emotion_queue.put_nowait(emotion)
+                                    print(f"[app.py] Queue was full, replaced oldest")
+                                except:
+                                    pass
                             if cv2 is not None:
                                 cv2.putText(
                                     av_frame,
@@ -760,10 +842,14 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                                     2,
                                     cv2.LINE_AA,
                                 )
+                        else:
+                            print(f"[app.py] normalize_emotion returned None for: {emotion}")
+                    else:
+                        print(f"[app.py] analyze_frame returned None")
                 
                 return av.VideoFrame.from_ndarray(av_frame, format="bgr24")
 
-            st.info("💡 **Tip**: Emotion detection runs every 1.5 seconds. Please face the camera and wait a few seconds for the first detection.")
+            st.info("💡 **Tip**: Emotion detection runs every second. Hold your expression for 2-3 seconds for best results.")
             
             ctx = webrtc_streamer(
                 key="webcam",
@@ -771,21 +857,47 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 media_stream_constraints={"video": True, "audio": False},
             )
             if ctx and ctx.state.playing:
-                drained_emotion: Optional[str] = None
+                # Collect all detected emotions from queue
+                from collections import Counter
+                emotions_batch = []
                 while True:
                     try:
-                        drained_emotion = emotion_queue.get_nowait()
+                        emotions_batch.append(emotion_queue.get_nowait())
                     except Empty:
                         break
-                if drained_emotion and st.session_state.get("last_detected_emotion") != drained_emotion:
-                    st.session_state["last_detected_emotion"] = drained_emotion
-                    st.session_state["_last_detected_tick"] = (
-                        st.session_state.get("_last_detected_tick", 0) + 1
-                    )
-                    try:
-                        trigger_rerun()
-                    except Exception:
-                        pass
+                
+                # Add to history and keep last 10 emotions
+                if emotions_batch:
+                    print(f"[app.py] Collected {len(emotions_batch)} emotions from queue: {emotions_batch}")
+                    st.session_state["_emotion_history"].extend(emotions_batch)
+                    st.session_state["_emotion_history"] = st.session_state["_emotion_history"][-10:]
+                    print(f"[app.py] Emotion history: {st.session_state['_emotion_history']}")
+                
+                # Use majority voting from recent history for stability
+                if len(st.session_state["_emotion_history"]) >= 2:
+                    emotion_counts = Counter(st.session_state["_emotion_history"][-5:])  # Last 5 detections
+                    most_common_emotion = emotion_counts.most_common(1)[0][0]
+                    print(f"[app.py] Most common emotion: {most_common_emotion}")
+                    
+                    if st.session_state.get("last_detected_emotion") != most_common_emotion:
+                        st.session_state["last_detected_emotion"] = most_common_emotion
+                        print(f"[app.py] Updated last_detected_emotion to: {most_common_emotion}")
+                        st.session_state["_last_detected_tick"] = (
+                            st.session_state.get("_last_detected_tick", 0) + 1
+                        )
+                        try:
+                            trigger_rerun()
+                        except Exception:
+                            pass
+            elif not ctx or not ctx.state.playing:
+                # When webcam stops, finalize emotion using history
+                if st.session_state.get("_emotion_history"):
+                    from collections import Counter
+                    emotion_counts = Counter(st.session_state["_emotion_history"])
+                    final_emotion = emotion_counts.most_common(1)[0][0]
+                    if st.session_state.get("last_detected_emotion") != final_emotion:
+                        st.session_state["last_detected_emotion"] = final_emotion
+                        st.session_state["detected_mood"] = final_emotion
             if cv2 is None:
                 st.info(
                     "OpenCV overlay support is unavailable; detections won't render on the video feed."
@@ -857,7 +969,14 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 if st.button("Clear Detection", key="clear_detection"):
                     st.session_state["last_detected_emotion"] = None
                     st.session_state["_last_snapshot_key"] = None
-                    st.rerun()
+                    st.session_state["_emotion_history"] = []
+                    st.session_state["detected_mood"] = None
+                    # Clear the queue as well
+                    while not emotion_queue.empty():
+                        try:
+                            emotion_queue.get_nowait()
+                        except:
+                            break
         else:
             st.info("📊 No emotion detected yet. Capture a snapshot to get started!")
 

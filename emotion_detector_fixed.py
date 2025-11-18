@@ -15,23 +15,15 @@ import numpy as np
 import cv2
 from PIL import Image
 import io
-from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
-# Enable nested event loops for Streamlit compatibility
+# Try to import hume SDK
 try:
-    import nest_asyncio
-    nest_asyncio.apply()
-except ImportError:
-    pass  # Will use thread pool instead
-
-# Try to import hume SDK (v0.13+ API)
-try:
-    from hume import AsyncHumeClient
+    from hume import HumeStreamClient
+    from hume.models.config import FaceConfig
     HUME_SDK_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     HUME_SDK_AVAILABLE = False
-    print(f"[emotion_detector] Hume SDK import error: {e}")
 
 load_dotenv()
 
@@ -66,18 +58,16 @@ def analyze_frame(frame_data: np.ndarray) -> Optional[str]:
     if frame_data is None or frame_data.size == 0:
         return None
     
-    # Priority 1: Try Hume Streaming API if enabled (skip OpenCV if Hume is available)
+    # Priority 1: Try Hume Streaming API if enabled
     if USE_HUME and HUME_API_KEY and HUME_SDK_AVAILABLE:
         try:
             emotion = _analyze_via_hume_sdk(frame_data)
             if emotion:
                 return emotion
-            # If Hume fails to detect, use OpenCV as fallback
-            print("[emotion_detector] Hume returned no emotion, using OpenCV fallback")
         except Exception as e:
             print(f"[emotion_detector] Hume error: {e}")
     
-    # Priority 2: Fallback to OpenCV detector (only if Hume unavailable or failed)
+    # Priority 2: Fallback to OpenCV detector
     opencv_emotion = _opencv_detector(frame_data)
     if opencv_emotion:
         return opencv_emotion
@@ -89,7 +79,7 @@ def analyze_frame(frame_data: np.ndarray) -> Optional[str]:
 def _analyze_via_hume_sdk(frame_data: np.ndarray) -> Optional[str]:
     """
     Analyze frame using Hume Python SDK (streaming).
-    Runs async code in sync context using thread pool to avoid event loop conflicts.
+    Runs async code in sync context.
     
     Args:
         frame_data: numpy array of the video frame in BGR format
@@ -105,38 +95,23 @@ def _analyze_via_hume_sdk(frame_data: np.ndarray) -> Optional[str]:
         
         frame_b64 = base64.b64encode(frame_bytes).decode('utf-8')
         
-        # Run async analysis in a separate thread to avoid event loop conflicts
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_run_async_in_thread, frame_b64)
-            emotion = future.result(timeout=5)  # 5 second timeout
+        # Run async analysis
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            emotion = loop.run_until_complete(_async_analyze(frame_b64))
             return emotion
+        finally:
+            loop.close()
             
     except Exception as e:
         print(f"[emotion_detector] Hume SDK error: {e}")
         return None
 
 
-def _run_async_in_thread(frame_b64: str) -> Optional[str]:
-    """
-    Helper to run async code in a separate thread with its own event loop.
-    
-    Args:
-        frame_b64: Base64-encoded JPEG frame
-        
-    Returns:
-        Detected emotion string or None
-    """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_async_analyze(frame_b64))
-    finally:
-        loop.close()
-
-
 async def _async_analyze(frame_b64: str) -> Optional[str]:
     """
-    Async function to analyze frame with Hume WebSocket API directly.
+    Async function to analyze frame with Hume SDK.
     
     Args:
         frame_b64: Base64-encoded JPEG frame
@@ -145,40 +120,17 @@ async def _async_analyze(frame_b64: str) -> Optional[str]:
         Detected emotion string or None
     """
     try:
-        import websockets
-        import json
+        client = HumeStreamClient(HUME_API_KEY)
+        config = FaceConfig()
         
-        # Connect directly to Hume WebSocket API
-        uri = "wss://api.hume.ai/v0/stream/models"
-        headers = {"X-Hume-Api-Key": HUME_API_KEY}
-        
-        async with websockets.connect(uri, extra_headers=headers) as websocket:
-            
-            # Send JSON payload with models config
-            payload = {
-                "data": frame_b64,
-                "models": {
-                    "face": {}
-                },
-                "raw_text": False
-            }
-            
-            await websocket.send(json.dumps(payload))
-            
-            # Receive response
-            response = await websocket.recv()
-            result = json.loads(response)
-            
-            # Check if result is an error
-            if 'error' in result:
-                print(f"[emotion_detector] Hume API error: {result['error']}")
-                return None
+        async with client.connect([config]) as socket:
+            result = await socket.send_text(frame_b64)
             
             # Extract emotion from result
-            if 'face' in result and result['face'] and 'predictions' in result['face']:
-                predictions = result['face']['predictions']
+            if result and hasattr(result, 'face') and result.face:
+                predictions = result.face.predictions
                 if predictions and len(predictions) > 0:
-                    emotions = predictions[0]['emotions']
+                    emotions = predictions[0].emotions
                     
                     # Define the 10 main emotions
                     main_emotions = {
@@ -187,7 +139,7 @@ async def _async_analyze(frame_b64: str) -> Optional[str]:
                     }
                     
                     # Filter and sort
-                    all_emotions = [(e['name'], e['score']) for e in emotions]
+                    all_emotions = [(e.name, e.score) for e in emotions]
                     main_emotion_scores = [(name, score) for name, score in all_emotions if name in main_emotions]
                     all_sorted = sorted(all_emotions, key=lambda x: x[1], reverse=True)
                     
@@ -225,18 +177,12 @@ def _opencv_detector(frame_data: np.ndarray) -> Optional[str]:
     OpenCV-based emotion detector with enhanced feature detection.
     Detects happy, sad, surprised, and defaults to calm.
     
-    NOTE: This should only be used as a fallback when Hume is unavailable.
-    
     Args:
         frame_data: numpy array of the video frame in BGR format
         
     Returns:
         Detected emotion string
     """
-    # Don't use OpenCV if Hume is configured and available
-    if USE_HUME and HUME_API_KEY and HUME_SDK_AVAILABLE:
-        return None
-    
     try:
         gray = cv2.cvtColor(frame_data, cv2.COLOR_BGR2GRAY)
         
@@ -349,7 +295,7 @@ def _map_hume_emotion_to_mood(hume_emotion: str) -> str:
         'Surprise (negative)': 'surprised',
         'Disgust': 'angry',
         'Calmness': 'calm',
-        'Excitement': 'energized',
+        'Excitement': 'energetic',
         'Contentment': 'relaxed',
     }
     
@@ -391,12 +337,12 @@ def _map_hume_emotion_to_mood(hume_emotion: str) -> str:
         'Contemplation': 'focused',
         'Determination': 'focused',
         'Interest': 'focused',
-        'Enthusiasm': 'energized',
+        'Enthusiasm': 'energetic',
         'Realization': 'surprised',
         'Awe': 'surprised',
         'Nostalgia': 'relaxed',
         'Desire': 'romantic',
-        'Craving': 'energized',
+        'Craving': 'energetic',
         'Entrancement': 'focused',
     }
     
@@ -420,7 +366,7 @@ def normalize_emotion(emotion: str) -> str:
     
     valid_emotions = {
         'happy', 'sad', 'angry', 'fearful', 'surprised', 
-        'calm', 'energized', 'relaxed', 'focused', 'romantic'
+        'calm', 'energetic', 'relaxed', 'focused', 'romantic'
     }
     
     if emotion_lower in valid_emotions:
@@ -430,8 +376,8 @@ def normalize_emotion(emotion: str) -> str:
         'neutral': 'calm',
         'content': 'calm',
         'peaceful': 'calm',
-        'excited': 'energized',
-        'hyper': 'energized',
+        'excited': 'energetic',
+        'hyper': 'energetic',
         'tired': 'relaxed',
         'sleepy': 'relaxed',
         'scared': 'fearful',
