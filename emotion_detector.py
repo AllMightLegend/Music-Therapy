@@ -99,25 +99,62 @@ def _submit_job(frame_bytes: bytes) -> Optional[str]:
     """
     try:
         import requests
-        
-        response = requests.post(
-            HUME_BATCH_JOBS_URL,
-            headers={"X-Hume-Api-Key": HUME_API_KEY},
-            files={"file": ("frame.jpg", frame_bytes, "image/jpeg")},
-            json={"models": {"face": {}}},
-            timeout=10
-        )
-        
-        if response.status_code not in [200, 202]:
-            print(f"[emotion_detector] Job submission failed: {response.status_code}")
-            return None
-        
-        data = response.json()
-        job_id = data.get("job_id")
-        if job_id:
-            print(f"[emotion_detector] Job ID: {job_id}")
-        return job_id
-        
+        import json as _json
+
+        # Hume expects multipart/form-data with the image file and a JSON-encoded
+        # `models` field. Using `json=` together with `files=` can produce an
+        # unexpected request shape, so send `models` as a string in `data`.
+        data = {"models": _json.dumps({"face": {}})}
+
+        # Try a few times on transient errors
+        max_attempts = 3
+        backoff = 0.5
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = requests.post(
+                    HUME_BATCH_JOBS_URL,
+                    headers={"X-Hume-Api-Key": HUME_API_KEY, "Accept": "application/json"},
+                    files={"file": ("frame.jpg", frame_bytes, "image/jpeg")},
+                    data=data,
+                    timeout=15,
+                )
+
+                if response.status_code in (200, 202):
+                    try:
+                        data_json = response.json()
+                    except Exception:
+                        print("[emotion_detector] Job submission returned non-JSON response")
+                        data_json = {}
+                    job_id = data_json.get("job_id") or data_json.get("id")
+                    if job_id:
+                        print(f"[emotion_detector] Job ID: {job_id}")
+                        return job_id
+                    # If API returned 202 but no job id, log body and treat as failure
+                    print(f"[emotion_detector] Submission response missing job id: {data_json}")
+                    return None
+                else:
+                    # Log body for debugging (400/500 etc.)
+                    body = None
+                    try:
+                        body = response.text
+                    except Exception:
+                        body = "<unreadable>"
+                    print(f"[emotion_detector] Job submission failed (status={response.status_code}): {body}")
+                    # On 5xx retry, on 4xx don't retry as it's likely a client error
+                    if 500 <= response.status_code < 600 and attempt < max_attempts:
+                        time.sleep(backoff)
+                        backoff *= 2
+                        continue
+                    return None
+            except requests.exceptions.RequestException as exc:
+                print(f"[emotion_detector] Network error submitting job (attempt {attempt}): {exc}")
+                if attempt < max_attempts:
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                return None
+
+        return None
     except Exception as e:
         print(f"[emotion_detector] Error submitting job: {e}")
         return None
