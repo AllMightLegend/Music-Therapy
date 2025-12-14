@@ -1118,6 +1118,18 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         from recommendation_logic import find_emotion_path
         emotion_path = find_emotion_path(detected, target_mood)
         
+        # Track current transition step (initialize if not exists)
+        if "current_transition_step" not in st.session_state:
+            st.session_state["current_transition_step"] = 0
+        
+        # Get current step index
+        current_step = st.session_state.get("current_transition_step", 0)
+        
+        # Make sure step is valid
+        if current_step >= len(emotion_path) - 1:
+            current_step = len(emotion_path) - 1
+            st.session_state["current_transition_step"] = current_step
+        
         # Display complete therapeutic journey
         st.markdown("---")
         st.markdown("### 🧭 Therapeutic Journey Plan")
@@ -1128,10 +1140,10 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         with col2:
             st.markdown(f"**Total Steps**: {len(emotion_path) - 1} transition(s)")
         
-        # Current session focus
+        # Current session focus based on transition step
         if len(emotion_path) >= 2:
-            current_from = emotion_path[0]
-            current_to = emotion_path[1] if len(emotion_path) > 1 else emotion_path[0]
+            current_from = emotion_path[current_step]
+            current_to = emotion_path[min(current_step + 1, len(emotion_path) - 1)]
             
             st.info(
                 f"🎯 **Current Session Focus**: Transitioning from **{current_from.title()}** to **{current_to.title()}**\n\n"
@@ -1155,10 +1167,11 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         
         st.markdown("---")
         
+        # Generate playlist for current transition step
         playlist_df = generate_playlist(
             music_engine=engine,
-            start_emotion=detected,
-            target_emotion=target_mood,
+            start_emotion=current_from,
+            target_emotion=current_to,
             num_steps=5,
             tolerance=0.1,
         )
@@ -1168,7 +1181,13 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         else:
             st.session_state["current_playlist"] = playlist_df
             st.session_state["emotion_path"] = emotion_path  # Store for feedback
-            st.subheader(f"🎵 Curated Playlist: {emotion_path[0].title()} → {emotion_path[1].title() if len(emotion_path) > 1 else target_mood.title()}")
+            
+            # Show progress in journey
+            progress_text = ""
+            if len(emotion_path) > 2:
+                progress_text = f" (Step {current_step + 1} of {len(emotion_path) - 1})"
+            
+            st.subheader(f"🎵 Curated Playlist: {current_from.title()} → {current_to.title()}{progress_text}")
             for _, row in playlist_df.iterrows():
                 track = row.get("track", "Unknown Track")
                 artist = row.get("artist", "Unknown Artist")
@@ -1183,29 +1202,158 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                     st.markdown(iframe, unsafe_allow_html=True)
 
             st.subheader("How did this session go?")
+            st.caption("Your feedback helps us adjust the therapy progression")
+            
             c1, c2, c3 = st.columns(3)
             feedback = None
-            if c1.button("😞 Not Effective"):
+            if c1.button("😞 Not Effective", key="feedback_sad", use_container_width=True):
                 feedback = "sad"
-            if c2.button("😐 Neutral"):
+            if c2.button("😐 Neutral", key="feedback_neutral", use_container_width=True):
                 feedback = "neutral"
-            if c3.button("😊 Great"):
+            if c3.button("😊 Great", key="feedback_happy", use_container_width=True):
                 feedback = "happy"
 
             if feedback is not None:
+                # Save session to database
                 playlist_json = st.session_state["current_playlist"].to_json()
                 database.save_session(
                     profile_id=profile["id"],
-                    start_mood=detected,
-                    target_mood=target_mood,
+                    start_mood=current_from,
+                    target_mood=current_to,
                     feedback_emoji=feedback,
                     playlist_json=playlist_json,
                 )
-                st.success("Feedback saved! Session complete.")
-                st.session_state["detected_mood"] = None
-                st.session_state["mode"] = None
-                st.session_state["last_detected_emotion"] = None
-                st.session_state.pop("current_playlist", None)
+                
+                # Smart feedback handling based on ISO principle
+                if feedback in ["sad", "neutral"]:
+                    # Negative/neutral feedback: Regenerate playlist for same transition
+                    st.warning(
+                        f"📝 **Feedback recorded:** The transition from **{current_from.title()}** to **{current_to.title()}** "
+                        f"needs adjustment. Let's try a different playlist for the same transition."
+                    )
+                    st.info(
+                        "💡 **What's happening:** We'll generate a new set of songs for this same emotional transition. "
+                        "The therapeutic goal remains the same, but with different music that might work better."
+                    )
+                    
+                    # Regenerate playlist with different random state
+                    import random
+                    new_playlist = generate_playlist(
+                        music_engine=engine,
+                        start_emotion=current_from,
+                        target_emotion=current_to,
+                        num_steps=5,
+                        tolerance=0.1,
+                        random_state=random.randint(1, 10000)
+                    )
+                    
+                    if not new_playlist.empty:
+                        st.session_state["current_playlist"] = new_playlist
+                        st.success("✨ **New playlist generated!** Try this alternative approach:")
+                        
+                        st.markdown("---")
+                        st.subheader(f"🔄 Alternative Playlist: {current_from.title()} → {current_to.title()}")
+                        for idx, row in new_playlist.iterrows():
+                            track = row.get("track", "Unknown Track")
+                            artist = row.get("artist", "Unknown Artist")
+                            spotify_id = row.get("spotify_id")
+                            st.write(f"{idx + 1}. {track} by {artist}")
+                            if spotify_id:
+                                embed_url = f"https://open.spotify.com/embed/track/{spotify_id}"
+                                iframe = (
+                                    f'<iframe src="{embed_url}" width="100%" height="80" frameborder="0" '
+                                    f'allowtransparency="true" allow="encrypted-media"></iframe>'
+                                )
+                                st.markdown(iframe, unsafe_allow_html=True)
+                        
+                        # Don't clear session - allow re-evaluation
+                        st.info("🔁 Please listen to this new playlist and provide feedback again.")
+                    else:
+                        st.error("Could not generate alternative playlist. Please try manual input.")
+                        # Reset for new session
+                        st.session_state["detected_mood"] = None
+                        st.session_state["mode"] = None
+                        st.session_state["last_detected_emotion"] = None
+                        st.session_state.pop("current_playlist", None)
+                
+                elif feedback == "happy":
+                    # Positive feedback: Move to next transition
+                    current_step = st.session_state.get("current_transition_step", 0)
+                    next_step = current_step + 1
+                    
+                    # Check if there are more transitions
+                    if next_step < len(emotion_path) - 1:
+                        # Move to next transition
+                        st.session_state["current_transition_step"] = next_step
+                        next_from = emotion_path[next_step]
+                        next_to = emotion_path[next_step + 1]
+                        
+                        st.success(
+                            f"🎉 **Great progress!** You've successfully transitioned from **{current_from.title()}** to **{current_to.title()}**."
+                        )
+                        st.info(
+                            f"🎯 **Moving to next step:** We're now shifting from **{next_from.title()}** to **{next_to.title()}**.\n\n"
+                            f"**Progress:** Step {next_step + 1} of {len(emotion_path) - 1} in your journey to **{target_mood.title()}**"
+                        )
+                        
+                        # Generate playlist for next transition
+                        next_playlist = generate_playlist(
+                            music_engine=engine,
+                            start_emotion=next_from,
+                            target_emotion=next_to,
+                            num_steps=5,
+                            tolerance=0.1,
+                        )
+                        
+                        if not next_playlist.empty:
+                            st.session_state["current_playlist"] = next_playlist
+                            st.session_state["detected_mood"] = next_from  # Update current mood
+                            
+                            st.markdown("---")
+                            st.subheader(f"🎵 Next Transition Playlist: {next_from.title()} → {next_to.title()}")
+                            for idx, row in next_playlist.iterrows():
+                                track = row.get("track", "Unknown Track")
+                                artist = row.get("artist", "Unknown Artist")
+                                spotify_id = row.get("spotify_id")
+                                st.write(f"{idx + 1}. {track} by {artist}")
+                                if spotify_id:
+                                    embed_url = f"https://open.spotify.com/embed/track/{spotify_id}"
+                                    iframe = (
+                                        f'<iframe src="{embed_url}" width="100%" height="80" frameborder="0" '
+                                        f'allowtransparency="true" allow="encrypted-media"></iframe>'
+                                    )
+                                    st.markdown(iframe, unsafe_allow_html=True)
+                            
+                            st.info("🎧 Listen to this playlist for the next phase of your emotional journey.")
+                        else:
+                            st.error("Could not generate next playlist. Starting new session.")
+                            # Reset everything
+                            st.session_state["detected_mood"] = None
+                            st.session_state["mode"] = None
+                            st.session_state["last_detected_emotion"] = None
+                            st.session_state.pop("current_playlist", None)
+                            st.session_state["current_transition_step"] = 0
+                    
+                    else:
+                        # Journey complete!
+                        st.balloons()
+                        st.success(
+                            f"🎊 **Journey Complete!** You've successfully reached your target mood: **{target_mood.title()}**\n\n"
+                            f"You've completed all {len(emotion_path) - 1} transition(s) in your therapeutic journey."
+                        )
+                        st.info(
+                            "✨ **Well done!** You can now:\n"
+                            "- Start a new session\n"
+                            "- View your progress in the Dashboard\n"
+                            "- Set a new target mood"
+                        )
+                        
+                        # Reset for new session
+                        st.session_state["detected_mood"] = None
+                        st.session_state["mode"] = None
+                        st.session_state["last_detected_emotion"] = None
+                        st.session_state.pop("current_playlist", None)
+                        st.session_state["current_transition_step"] = 0
 
 
 def render_progress_dashboard(profile: Dict[str, Any]) -> None:
