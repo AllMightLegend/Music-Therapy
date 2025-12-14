@@ -758,8 +758,31 @@ def render_child_selection() -> None:
 def render_new_session(profile: Dict[str, Any]) -> None:
     st.title(f"New Session for {profile['child_name']}")
     st.caption(
-        "Launch webcam mood detection or log the child's current state manually to curate a guided playlist."
+        "Detect the child's mood and receive a personalized therapeutic music playlist."
     )
+    
+    # Add helpful notice about detection methods
+    with st.expander("ℹ️ About Mood Detection Methods", expanded=False):
+        st.markdown("""
+        **📸 Webcam (Snapshot Mode)** - *Recommended*
+        - Take a single photo for emotion detection
+        - Most reliable and stable
+        - Works on all platforms including cloud deployments
+        - No connection issues
+        
+        **🎥 Webcam (Real-time Video)**
+        - Continuous emotion detection from live video
+        - May experience STUN/connection issues on some networks
+        - Higher bandwidth requirements
+        - Best for local deployments
+        - If you see connection errors, use Snapshot mode instead
+        
+        **✏️ Manual Input** - *Always Works*
+        - Manually select the child's current mood
+        - No camera or AI required
+        - Same quality recommendations
+        - Perfect backup option
+        """)
 
     if not engine.is_ready():
         st.warning(
@@ -790,10 +813,21 @@ def render_new_session(profile: Dict[str, Any]) -> None:
             st.session_state["detected_mood"] = manual_mood
     elif mode == "webcam":
         st.subheader("Webcam Mood Detection")
+        
+        # Add option to choose between real-time and snapshot mode
+        detection_method = st.radio(
+            "Choose detection method:",
+            ["📸 Snapshot (Recommended - More Reliable)", "🎥 Real-time Video (May have connection issues)"],
+            key="detection_method",
+            help="Snapshot mode is more stable and works better on cloud deployments"
+        )
+        
+        use_snapshot = "Snapshot" in detection_method
+        
         realtime_available = webrtc_streamer is not None and av is not None
         detector_available = analyze_frame is not None
 
-        if realtime_available and detector_available:
+        if not use_snapshot and realtime_available and detector_available:
             emotion_queue = st.session_state.get("_emotion_queue")
             if not isinstance(emotion_queue, Queue):
                 emotion_queue = Queue(maxsize=12)
@@ -849,13 +883,45 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 
                 return av.VideoFrame.from_ndarray(av_frame, format="bgr24")
 
+            st.warning(
+                "⚠️ **Real-time video may have connection issues.** "
+                "If you experience problems, switch to **Snapshot mode** above for better reliability."
+            )
             st.info("💡 **Tip**: Emotion detection runs every second. Hold your expression for 2-3 seconds for best results.")
             
-            ctx = webrtc_streamer(
-                key="webcam",
-                video_frame_callback=video_frame_callback,
-                media_stream_constraints={"video": True, "audio": False},
-            )
+            try:
+                # Configure RTC (WebRTC) with proper STUN/TURN servers for better connectivity
+                from streamlit_webrtc import WebRtcMode, RTCConfiguration
+                
+                rtc_configuration = RTCConfiguration(
+                    {"iceServers": [
+                        {"urls": ["stun:stun.l.google.com:19302"]},
+                        {"urls": ["stun:stun1.l.google.com:19302"]},
+                        {"urls": ["stun:stun2.l.google.com:19302"]},
+                        {"urls": ["stun:stun3.l.google.com:19302"]},
+                        {"urls": ["stun:stun4.l.google.com:19302"]},
+                    ]}
+                )
+                
+                ctx = webrtc_streamer(
+                    key="webcam",
+                    mode=WebRtcMode.SENDRECV,
+                    rtc_configuration=rtc_configuration,
+                    video_frame_callback=video_frame_callback,
+                    media_stream_constraints={
+                        "video": {
+                            "width": {"ideal": 640, "max": 1280},
+                            "height": {"ideal": 480, "max": 720},
+                            "frameRate": {"ideal": 10, "max": 15}  # Lower framerate for better stability
+                        },
+                        "audio": False
+                    },
+                    async_processing=True,  # Process frames asynchronously for better performance
+                )
+            except Exception as e:
+                st.error(f"❌ WebRTC connection failed: {str(e)}")
+                st.info("💡 Please use **Snapshot mode** (select it above) for a more reliable experience.")
+                ctx = None
             if ctx and ctx.state.playing:
                 # Collect all detected emotions from queue
                 from collections import Counter
@@ -902,16 +968,18 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 st.info(
                     "OpenCV overlay support is unavailable; detections won't render on the video feed."
                 )
-        else:
-            if _dependency_errors:
+        
+        # Snapshot mode section (always available)
+        if use_snapshot or not realtime_available or not detector_available:
+            if not use_snapshot and _dependency_errors:
                 with st.expander("Show webcam dependency diagnostics"):
                     for name, message in _dependency_errors:
                         st.markdown(f"- `{name}`: {message}")
-
-            st.warning(
-                "Realtime webcam streaming isn't available right now. "
-                "You can still capture snapshots for mood detection below."
-            )
+                
+                st.warning(
+                    "⚠️ Real-time webcam streaming has connection issues. "
+                    "Using **Snapshot mode** instead (more reliable)."
+                )
 
             if not detector_available:
                 st.error(
@@ -922,8 +990,14 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 st.info(
                     "💡 **Tip**: The manual mood input feature works perfectly and provides the same playlist recommendations!"
                 )
+            else:
+                st.success("📸 **Snapshot Mode Active** - More stable than real-time video")
+                st.info(
+                    "**How it works:** Take a photo showing the child's expression. "
+                    "The AI will analyze it and detect the emotion. Much more reliable than video streaming!"
+                )
 
-            snapshot = st.camera_input("Capture a snapshot", key="webcam_snapshot")
+            snapshot = st.camera_input("📷 Capture a snapshot of the child's face", key="webcam_snapshot")
             
             # Process snapshot if available and not already processed
             if snapshot is not None and detector_available:
