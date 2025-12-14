@@ -1001,6 +1001,35 @@ def render_new_session(profile: Dict[str, Any]) -> None:
     detected = st.session_state.get("detected_mood")
     if detected:
         target_mood = profile.get("default_target_mood") or "calm"
+        
+        # Check if detected mood is the same as target mood
+        if detected.lower().strip() == target_mood.lower().strip():
+            st.markdown(
+                f"""
+                <div class="session-section">
+                    <h3>Detected Mood · {detected.title()}</h3>
+                    <p class="subtitle">You are already at your target emotional state: <strong>{target_mood.title()}</strong></p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.success(f"🎉 Great news! You're already feeling {detected.title()}, which is your target mood. No transition needed!")
+            st.info("💡 **Tip**: You can still enjoy music that matches your current mood, or you can change your target mood in the profile settings.")
+            
+            # Provide option to reset or change target
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Detect Again", key="detect_again_same_mood"):
+                    st.session_state["detected_mood"] = None
+                    st.session_state["last_detected_emotion"] = None
+                    st.session_state["mode"] = None
+                    st.rerun()
+            with col2:
+                if st.button("⚙️ Change Target Mood", key="change_target_same_mood"):
+                    st.session_state["mode"] = None
+                    st.rerun()
+            return  # Exit early, no playlist generation
+        
         st.markdown(
             f"""
             <div class="session-section">
@@ -1010,6 +1039,48 @@ def render_new_session(profile: Dict[str, Any]) -> None:
             """,
             unsafe_allow_html=True,
         )
+        
+        # Show the emotion transition path (ISO Principle)
+        from recommendation_logic import find_emotion_path
+        emotion_path = find_emotion_path(detected, target_mood)
+        
+        # Display complete therapeutic journey
+        st.markdown("---")
+        st.markdown("### 🧭 Therapeutic Journey Plan")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown(f"**Complete Path**: {' → '.join([e.title() for e in emotion_path])}")
+        with col2:
+            st.markdown(f"**Total Steps**: {len(emotion_path) - 1} transition(s)")
+        
+        # Current session focus
+        if len(emotion_path) >= 2:
+            current_from = emotion_path[0]
+            current_to = emotion_path[1] if len(emotion_path) > 1 else emotion_path[0]
+            
+            st.info(
+                f"🎯 **Current Session Focus**: Transitioning from **{current_from.title()}** to **{current_to.title()}**\n\n"
+                f"This playlist is specifically designed to help you move from your current **{current_from.title()}** state "
+                f"toward a more **{current_to.title()}** emotional state."
+            )
+            
+            # Show remaining steps if multi-step journey
+            if len(emotion_path) > 2:
+                remaining_path = emotion_path[1:]
+                st.warning(
+                    f"📋 **Next Steps for Therapist**: After this session, continue the journey:\n\n"
+                    f"**Remaining Path**: {' → '.join([e.title() for e in remaining_path])}\n\n"
+                    f"**Recommendation**: In subsequent sessions, create playlists for each transition "
+                    f"({len(emotion_path) - 2} more session(s) recommended to reach **{target_mood.title()}**)"
+                )
+            else:
+                st.success(
+                    f"✅ **Single-Step Journey**: This session will complete the full transition to **{target_mood.title()}**"
+                )
+        
+        st.markdown("---")
+        
         playlist_df = generate_playlist(
             music_engine=engine,
             start_emotion=detected,
@@ -1022,7 +1093,8 @@ def render_new_session(profile: Dict[str, Any]) -> None:
             st.info("No suitable songs found for the current plan. Try again or widen tolerance.")
         else:
             st.session_state["current_playlist"] = playlist_df
-            st.subheader("Curated Playlist")
+            st.session_state["emotion_path"] = emotion_path  # Store for feedback
+            st.subheader(f"🎵 Curated Playlist: {emotion_path[0].title()} → {emotion_path[1].title() if len(emotion_path) > 1 else target_mood.title()}")
             for _, row in playlist_df.iterrows():
                 track = row.get("track", "Unknown Track")
                 artist = row.get("artist", "Unknown Artist")
