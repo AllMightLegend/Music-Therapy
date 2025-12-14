@@ -35,24 +35,63 @@ EMOTION_TO_VA: Dict[str, Tuple[float, float]] = {
     "energized": (0.6, 0.8),
     "relaxed": (0.5, -0.6),
     "loving": (0.7, 0.3),
+    # Intermediate emotions for smoother transitions
+    "melancholic": (-0.5, -0.4),  # Less sad, moving toward neutral
+    "somber": (-0.35, -0.2),  # Between melancholic and neutral
+    "irritated": (-0.45, 0.5),  # Less angry, still tense
+    "tense": (-0.2, 0.4),  # Between irritated and anxious
+    "uneasy": (-0.15, 0.3),  # Light anxiety, moving to neutral
+    "content": (0.4, -0.3),  # Between neutral and calm
+    "serene": (0.6, -0.5),  # Between content and calm
+    "peaceful": (0.65, -0.6),  # Very close to calm
+    "hopeful": (0.3, 0.1),  # Positive but low arousal
+    "cheerful": (0.6, 0.5),  # Moving toward happy
 }
 
-# ISO Principle: Emotion transition graph
+# ISO Principle: Emotion transition graph with minimum 2-step paths
+# Each transition now goes through intermediate states
 EMOTION_TRANSITIONS: Dict[str, List[str]] = {
-    "sad": ["neutral", "calm", "relaxed"],
-    "angry": ["anxious", "neutral", "focused"],
-    "fearful": ["anxious", "neutral", "calm"],
-    "fear": ["anxious", "neutral", "calm"],
-    "anxious": ["neutral", "calm", "focused"],
-    "surprised": ["neutral", "happy", "curious"],
-    "surprise": ["neutral", "happy"],
-    "neutral": ["calm", "focused", "happy", "relaxed"],
-    "calm": ["relaxed", "focused", "happy"],
-    "relaxed": ["calm", "happy", "focused"],
-    "focused": ["calm", "energized", "happy"],
-    "energized": ["happy", "focused", "excited"],
-    "happy": ["energized", "loving", "calm"],
-    "loving": ["happy", "calm", "relaxed"],
+    # Sad pathway: sad → melancholic → somber → neutral/content → calm
+    "sad": ["melancholic"],
+    "melancholic": ["somber"],
+    "somber": ["neutral", "content"],
+    
+    # Angry pathway: angry → irritated → tense → uneasy → neutral
+    "angry": ["irritated"],
+    "irritated": ["tense"],
+    "tense": ["uneasy", "anxious"],
+    
+    # Fear/Anxious pathway: fear → anxious → uneasy → neutral
+    "fearful": ["anxious"],
+    "fear": ["anxious"],
+    "anxious": ["uneasy"],
+    "uneasy": ["neutral", "content"],
+    
+    # Surprise pathway
+    "surprised": ["hopeful"],
+    "surprise": ["hopeful"],
+    "hopeful": ["neutral", "cheerful"],
+    
+    # Neutral is a hub connecting to multiple paths
+    "neutral": ["content", "hopeful", "focused"],
+    
+    # Positive progression: content → serene → peaceful → calm
+    "content": ["serene", "hopeful"],
+    "serene": ["peaceful"],
+    "peaceful": ["calm"],
+    
+    # Calm pathways
+    "calm": ["relaxed", "peaceful"],
+    "relaxed": ["calm", "content"],
+    
+    # Focus pathway
+    "focused": ["content", "cheerful"],
+    
+    # Happy pathway: hopeful/cheerful → happy
+    "cheerful": ["happy", "energized"],
+    "energized": ["happy", "cheerful"],
+    "happy": ["energized", "loving"],
+    "loving": ["happy", "content"],
 }
 
 
@@ -66,8 +105,9 @@ def get_va_coordinates(emotion: str) -> Tuple[float, float]:
 
 def find_emotion_path(start: str, target: str) -> List[str]:
     """
-    Find the shortest emotional transition path from start to target emotion.
+    Find emotional transition path from start to target with MINIMUM 2 transitions.
     Uses BFS to find the most natural emotional progression based on ISO principle.
+    Ensures at least 3 emotions in path (2 transitions) for gradual therapeutic progression.
     """
     start = start.lower().strip()
     target = target.lower().strip()
@@ -79,23 +119,109 @@ def find_emotion_path(start: str, target: str) -> List[str]:
     queue = deque([(start, [start])])
     visited = {start}
     
+    # Store all found paths to ensure minimum 2 transitions
+    found_paths = []
+    
     while queue:
         current, path = queue.popleft()
         next_emotions = EMOTION_TRANSITIONS.get(current, [])
         
         for next_emotion in next_emotions:
+            new_path = path + [next_emotion]
+            
             if next_emotion == target:
-                return path + [target]
+                found_paths.append(new_path)
+                # Continue searching for alternative paths
             
             if next_emotion not in visited:
                 visited.add(next_emotion)
-                queue.append((next_emotion, path + [next_emotion]))
+                queue.append((next_emotion, new_path))
     
-    # Fallback through neutral
-    if start != "neutral" and target != "neutral":
-        return [start, "neutral", target]
-    else:
-        return [start, target]
+    # If we found paths, prefer those with at least 2 transitions (3+ emotions)
+    if found_paths:
+        # Filter for paths with minimum 3 emotions (2 transitions)
+        long_enough_paths = [p for p in found_paths if len(p) >= 3]
+        
+        if long_enough_paths:
+            # Return the shortest path that meets the minimum requirement
+            return min(long_enough_paths, key=len)
+        else:
+            # Path too short - create extended version
+            shortest = min(found_paths, key=len)
+            return _extend_short_path(shortest, target)
+    
+    # Fallback: Create path with intermediate emotions
+    # Ensure minimum 2 transitions through neutral and intermediate states
+    return _create_minimum_transition_path(start, target)
+
+
+def _extend_short_path(path: List[str], target: str) -> List[str]:
+    """
+    Extend a path that's too short (< 3 emotions) by adding intermediate emotions.
+    """
+    if len(path) >= 3:
+        return path
+    
+    start = path[0]
+    
+    # Add appropriate intermediate emotions based on valence-arousal
+    v_start, a_start = get_va_coordinates(start)
+    v_target, a_target = get_va_coordinates(target)
+    
+    # Create intermediate emotion
+    v_mid = (v_start + v_target) / 2
+    a_mid = (a_start + a_target) / 2
+    
+    # Find closest intermediate emotion
+    best_intermediate = "neutral"
+    min_dist = float('inf')
+    
+    for emotion in EMOTION_TO_VA.keys():
+        if emotion not in [start, target]:
+            v, a = get_va_coordinates(emotion)
+            dist = abs(v - v_mid) + abs(a - a_mid)
+            if dist < min_dist:
+                min_dist = dist
+                best_intermediate = emotion
+    
+    return [start, best_intermediate, target]
+
+
+def _create_minimum_transition_path(start: str, target: str) -> List[str]:
+    """
+    Create a fallback path with minimum 2 transitions when no graph path exists.
+    """
+    # Calculate emotional distance
+    v_start, a_start = get_va_coordinates(start)
+    v_target, a_target = get_va_coordinates(target)
+    
+    # Find two intermediate emotions
+    intermediates = []
+    
+    # First intermediate: 1/3 of the way
+    v_int1 = v_start + (v_target - v_start) / 3
+    a_int1 = a_start + (a_target - a_start) / 3
+    
+    # Second intermediate: 2/3 of the way  
+    v_int2 = v_start + 2 * (v_target - v_start) / 3
+    a_int2 = a_start + 2 * (a_target - a_start) / 3
+    
+    # Find closest emotions for each intermediate point
+    for v_mid, a_mid in [(v_int1, a_int1), (v_int2, a_int2)]:
+        best_emotion = "neutral"
+        min_dist = float('inf')
+        
+        for emotion in EMOTION_TO_VA.keys():
+            if emotion not in [start, target] + intermediates:
+                v, a = get_va_coordinates(emotion)
+                dist = ((v - v_mid) ** 2 + (a - a_mid) ** 2) ** 0.5
+                if dist < min_dist:
+                    min_dist = dist
+                    best_emotion = emotion
+        
+        intermediates.append(best_emotion)
+    
+    return [start, intermediates[0], intermediates[1], target]
 
 
 class AdvancedMusicRecommender:
@@ -225,6 +351,10 @@ class AdvancedMusicRecommender:
         if not self.engine.is_ready() or self.knn_model is None:
             return pd.DataFrame()
         
+        # Set random seed for reproducible randomness
+        if random_state is not None:
+            np.random.seed(random_state)
+        
         # Normalize emotions
         start_emotion = start_emotion.lower().strip()
         target_emotion = target_emotion.lower().strip()
@@ -281,12 +411,12 @@ class AdvancedMusicRecommender:
                 # Find nearest neighbors
                 distances, indices = self.knn_model.kneighbors(
                     target_point.reshape(1, -1),
-                    n_neighbors=min(20, len(self.engine.df))
+                    n_neighbors=min(50, len(self.engine.df))  # Increased from 20 to 50 for more variety
                 )
                 
-                # Score candidates
-                best_song = None
-                best_score = float('-inf')
+                # Score all candidates and create weighted selection pool
+                candidates = []
+                scores = []
                 
                 for dist, idx in zip(distances[0], indices[0]):
                     song = self.engine.df.iloc[idx]
@@ -301,11 +431,21 @@ class AdvancedMusicRecommender:
                         song_features, target_point, used_ids, song_id
                     )
                     
-                    if score > best_score:
-                        best_score = score
-                        best_song = song
+                    candidates.append((song, score))
+                    scores.append(score)
                 
-                if best_song is not None:
+                # Select from top candidates with weighted randomness
+                if candidates:
+                    # Normalize scores to positive values for probability weights
+                    scores = np.array(scores)
+                    scores = scores - scores.min() + 0.1  # Shift to positive
+                    scores = np.exp(scores)  # Exponential weighting favors higher scores
+                    probabilities = scores / scores.sum()
+                    
+                    # Randomly select from top candidates based on scores
+                    selected_idx = np.random.choice(len(candidates), p=probabilities)
+                    best_song = candidates[selected_idx][0]
+                    
                     selected_songs.append(best_song)
                     used_ids.add(str(best_song.get('spotify_id', '')))
                 
