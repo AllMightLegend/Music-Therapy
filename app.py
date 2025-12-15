@@ -764,7 +764,6 @@ def render_child_selection() -> None:
             # Show change target mood selector if therapist
             if st.session_state["user_role"] == "therapist":
                 current_target = profile.get('default_target_mood', 'calm')
-                TARGET_MOODS = ["calm", "happy", "relaxed", "energized", "focused"]
                 
                 change_col1, change_col2 = st.columns([2, 1])
                 with change_col1:
