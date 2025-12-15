@@ -696,9 +696,8 @@ def render_child_selection() -> None:
                                 
                                 # Try to send email automatically
                                 import email_service
-                                # Get therapist name from database
-                                therapist_data = database.get_user_by_id(user_id)
-                                therapist_name = therapist_data.get("name", "Your Therapist") if therapist_data else "Your Therapist"
+                                # Get therapist name from session state
+                                therapist_name = st.session_state.get("user_display_name", "Your Therapist")
                                 
                                 if email_service.is_email_configured():
                                     email_success, email_msg = email_service.send_invitation_email(
