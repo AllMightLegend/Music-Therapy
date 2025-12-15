@@ -761,6 +761,37 @@ def render_child_selection() -> None:
                 """,
                 unsafe_allow_html=True,
             )
+            # Show change target mood selector if therapist
+            if st.session_state["user_role"] == "therapist":
+                current_target = profile.get('default_target_mood', 'calm')
+                TARGET_MOODS = ["calm", "happy", "relaxed", "energized", "focused"]
+                
+                change_col1, change_col2 = st.columns([2, 1])
+                with change_col1:
+                    new_target = st.selectbox(
+                        "Change Target Mood:",
+                        TARGET_MOODS,
+                        index=TARGET_MOODS.index(current_target) if current_target in TARGET_MOODS else 0,
+                        key=f"target_mood_select_{profile['id']}"
+                    )
+                with change_col2:
+                    st.write("")  # Spacer
+                    st.write("")  # Spacer to align button
+                    if st.button("💾 Update", key=f"update_target_{profile['id']}", type="primary"):
+                        if new_target != current_target:
+                            success = database.update_target_mood(profile['id'], new_target, user_id)
+                            if success:
+                                st.success(f"✅ Target mood changed to **{new_target.title()}**")
+                                # Clear emotion path to force recalculation in next session
+                                if st.session_state.get("active_profile_id") == profile['id']:
+                                    for key in ["emotion_path", "current_playlist", "current_from", "current_to"]:
+                                        st.session_state.pop(key, None)
+                                st.rerun()
+                            else:
+                                st.error("Failed to update target mood.")
+                        else:
+                            st.info("Target mood is already set to this value.")
+            
             cols = st.columns([1, 1, 1.3])
             with cols[0]:
                 if st.button("Open Profile", key=f"select_profile_{profile['id']}"):

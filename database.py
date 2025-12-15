@@ -339,6 +339,38 @@ def link_parent_to_profile(parent_id: int, profile_id: int) -> None:
         conn.close()
 
 
+def update_target_mood(profile_id: int, new_target_mood: str, therapist_id: int) -> bool:
+    """
+    Update the default target mood for a child profile.
+    Only the therapist who created the profile can update it.
+    
+    Returns:
+        bool: True if updated successfully, False if not authorized or profile doesn't exist
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # First verify the therapist owns this profile
+        row = cur.execute(
+            "SELECT therapist_id FROM profiles WHERE id = ?;",
+            (profile_id,),
+        ).fetchone()
+        
+        if not row or row[0] != therapist_id:
+            return False
+        
+        # Update the target mood
+        cur.execute(
+            "UPDATE profiles SET default_target_mood = ? WHERE id = ?;",
+            (new_target_mood.lower().strip(), profile_id),
+        )
+        
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 def delete_profile(profile_id: int, therapist_id: int) -> bool:
     """
     Delete a child profile and all associated data.
