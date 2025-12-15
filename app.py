@@ -761,13 +761,44 @@ def render_child_selection() -> None:
                 """,
                 unsafe_allow_html=True,
             )
-            cols = st.columns([1, 1.3])
+            cols = st.columns([1, 1, 1.3])
             with cols[0]:
                 if st.button("Open Profile", key=f"select_profile_{profile['id']}"):
                     set_active_profile(profile)
                     trigger_rerun()
+            
             if st.session_state["user_role"] == "therapist":
                 with cols[1]:
+                    if st.button("🗑️ Delete", key=f"delete_profile_{profile['id']}", type="secondary"):
+                        # Store profile ID to confirm deletion
+                        st.session_state[f"confirm_delete_{profile['id']}"] = True
+                        st.rerun()
+                
+                # Show confirmation dialog if delete was clicked
+                if st.session_state.get(f"confirm_delete_{profile['id']}", False):
+                    st.warning(f"⚠️ **Are you sure you want to delete {profile['child_name']}'s profile?**")
+                    st.caption("This will permanently delete all session history, invitations, and parent access.")
+                    
+                    confirm_cols = st.columns([1, 1, 2])
+                    with confirm_cols[0]:
+                        if st.button("✅ Yes, Delete", key=f"confirm_yes_{profile['id']}", type="primary"):
+                            success = database.delete_profile(profile['id'], user_id)
+                            if success:
+                                st.success(f"Profile for {profile['child_name']} has been deleted.")
+                                # Clear confirmation state
+                                st.session_state.pop(f"confirm_delete_{profile['id']}", None)
+                                # If this was the active profile, clear it
+                                if st.session_state.get("active_profile_id") == profile['id']:
+                                    st.session_state.pop("active_profile_id", None)
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete profile. You may not have permission.")
+                    with confirm_cols[1]:
+                        if st.button("❌ Cancel", key=f"confirm_no_{profile['id']}"):
+                            st.session_state.pop(f"confirm_delete_{profile['id']}", None)
+                            st.rerun()
+                
+                with cols[2]:
                     parents = database.get_parents_for_profile(profile["id"])
                     if parents:
                         st.markdown(
