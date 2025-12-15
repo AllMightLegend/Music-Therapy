@@ -1,0 +1,508 @@
+================================================================================
+MUSIC THERAPY STUDIO - ALGORITHM PSEUDO CODE
+================================================================================
+Core Algorithms for Music Recommendation System
+Version: 2.0 | December 2025
+
+================================================================================
+1. MAIN APPLICATION LOOP
+================================================================================
+
+ALGORITHM: MusicTherapyStudio
+
+INITIALIZE:
+    database.init_db()
+    music_engine = MusicEngine("muse_v3.csv")
+    session_state = {}
+
+MAIN_LOOP:
+    WHILE application_running:
+        
+        IF NOT session_state["authenticated"]:
+            user = authenticate_user()
+            IF user:
+                session_state["authenticated"] = TRUE
+                session_state["user"] = user
+        
+        IF NOT session_state["active_profile"]:
+            profiles = get_profiles(user_id)
+            selected = display_and_wait_for_selection(profiles)
+            session_state["active_profile"] = selected
+        
+        IF NOT session_state["detected_mood"]:
+            detected = detect_emotion()
+            session_state["detected_mood"] = detected
+        
+        IF detected_mood == target_mood:
+            display_success_message()
+            reset_session()
+            CONTINUE
+        
+        IF NOT session_state["emotion_path"]:
+            path = find_emotion_path(detected_mood, target_mood)
+            session_state["emotion_path"] = path
+            session_state["current_step"] = 0
+        
+        IF NOT session_state["current_playlist"]:
+            playlist = generate_playlist(current_from, current_to)
+            session_state["current_playlist"] = playlist
+        
+        display_playlist()
+        feedback = wait_for_feedback()
+        save_session(feedback)
+        
+        IF feedback IN ["sad", "neutral"]:
+            regenerate_playlist()
+        ELSE IF feedback == "happy":
+            advance_to_next_step()
+
+
+================================================================================
+2. EMOTION PATH FINDING (BFS)
+================================================================================
+
+ALGORITHM: find_emotion_path(start, target)
+
+INPUT: 
+    start: String (e.g., "sad")
+    target: String (e.g., "calm")
+
+OUTPUT: 
+    List of emotions (minimum 3 emotions)
+
+STEPS:
+
+1. IF start == target:
+       RETURN [start]
+
+2. Initialize BFS:
+       queue = [(start, [start])]
+       visited = {start}
+       found_paths = []
+
+3. Search graph:
+       WHILE queue NOT EMPTY:
+           current, path = queue.dequeue()
+           next_emotions = EMOTION_TRANSITIONS[current]
+           
+           FOR each next_emotion IN next_emotions:
+               new_path = path + [next_emotion]
+               
+               IF next_emotion == target:
+                   found_paths.append(new_path)
+               
+               IF next_emotion NOT IN visited:
+                   visited.add(next_emotion)
+                   queue.enqueue((next_emotion, new_path))
+
+4. Filter and select best path:
+       valid_paths = [p FOR p IN found_paths IF len(p) >= 3]
+       
+       IF valid_paths:
+           RETURN shortest(valid_paths)
+       ELSE IF found_paths:
+           RETURN extend_path(shortest_path, target)
+       ELSE:
+           RETURN create_artificial_path(start, target)
+
+
+FUNCTION extend_path(path, target):
+    start = path[0]
+    v_start, a_start = get_va_coordinates(start)
+    v_target, a_target = get_va_coordinates(target)
+    
+    # Calculate midpoint
+    v_mid = (v_start + v_target) / 2
+    a_mid = (a_start + a_target) / 2
+    
+    # Find closest intermediate emotion
+    min_distance = INFINITY
+    best_intermediate = "neutral"
+    
+    FOR emotion IN all_emotions:
+        v, a = get_va_coordinates(emotion)
+        distance = sqrt((v - v_mid)² + (a - a_mid)²)
+        IF distance < min_distance:
+            min_distance = distance
+            best_intermediate = emotion
+    
+    RETURN [start, best_intermediate, target]
+
+
+FUNCTION create_artificial_path(start, target):
+    v_start, a_start = get_va_coordinates(start)
+    v_target, a_target = get_va_coordinates(target)
+    
+    # Two intermediate points: 1/3 and 2/3 of the way
+    v_int1 = v_start + (v_target - v_start) / 3
+    a_int1 = a_start + (a_target - a_start) / 3
+    
+    v_int2 = v_start + 2 * (v_target - v_start) / 3
+    a_int2 = a_start + 2 * (a_target - a_start) / 3
+    
+    int1 = find_closest_emotion(v_int1, a_int1)
+    int2 = find_closest_emotion(v_int2, a_int2, exclude=[int1])
+    
+    RETURN [start, int1, int2, target]
+
+
+================================================================================
+3. PLAYLIST GENERATION (KNN + CUBIC EASING)
+================================================================================
+
+ALGORITHM: generate_playlist(start_emotion, target_emotion, num_steps)
+
+INPUT:
+    start_emotion: String
+    target_emotion: String
+    num_steps: Integer (default 5)
+    random_state: Integer (for reproducibility)
+
+OUTPUT:
+    DataFrame with 5 songs
+
+STEPS:
+
+1. Initialize:
+       np.random.seed(random_state)
+       selected_songs = []
+       used_song_ids = set()
+
+2. Find emotion path:
+       emotion_path = find_emotion_path(start_emotion, target_emotion)
+
+3. FOR each transition IN emotion_path:
+       current = emotion_path[i]
+       next = emotion_path[i + 1]
+       
+       # Get VAD coordinates
+       v_start, a_start = get_va_coordinates(current)
+       v_end, a_end = get_va_coordinates(next)
+       
+       # Standardize features
+       start_features = standardize([v_start, a_start, 0.0])
+       end_features = standardize([v_end, a_end, 0.0])
+       
+       # Generate transition points with cubic easing
+       transition_points = []
+       songs_needed = num_steps / (len(emotion_path) - 1)
+       
+       FOR i FROM 0 TO songs_needed - 1:
+           t = i / (songs_needed - 1)
+           
+           # Cubic easing
+           IF t < 0.5:
+               eased_t = 4 * t³
+           ELSE:
+               eased_t = 1 - ((-2*t + 2)³ / 2)
+           
+           # Interpolate
+           point = start_features + (end_features - start_features) * eased_t
+           transition_points.append(point)
+       
+       # Find songs for each point
+       FOR target_point IN transition_points:
+           song = select_best_song(target_point, used_song_ids)
+           selected_songs.append(song)
+           used_song_ids.add(song.spotify_id)
+
+4. RETURN DataFrame(selected_songs)
+
+
+FUNCTION select_best_song(target_point, used_ids):
+    # KNN: Find 50 nearest neighbors
+    distances, indices = knn_model.kneighbors([target_point], n_neighbors=50)
+    
+    # Score all candidates
+    candidates = []
+    scores = []
+    
+    FOR idx IN indices[0]:
+        song = music_df.iloc[idx]
+        song_id = song["spotify_id"]
+        
+        IF song_id IN used_ids:
+            CONTINUE
+        
+        # Compute score
+        song_features = feature_matrix[idx]
+        distance = euclidean_distance(song_features, target_point)
+        diversity_bonus = 0.3 IF len(used_ids) > 0 ELSE 0.0
+        score = -distance + diversity_bonus
+        
+        candidates.append((song, score))
+        scores.append(score)
+    
+    # Weighted random selection
+    scores = array(scores)
+    scores = scores - min(scores) + 0.1
+    weights = exp(scores)
+    probabilities = weights / sum(weights)
+    
+    selected_idx = random_choice(len(candidates), p=probabilities)
+    RETURN candidates[selected_idx][0]
+
+
+================================================================================
+4. EMOTION DETECTION (HUME AI)
+================================================================================
+
+ALGORITHM: analyze_frame(frame_data)
+
+INPUT: 
+    frame_data: numpy array (BGR image)
+
+OUTPUT: 
+    String (detected emotion) or None
+
+STEPS:
+
+1. Validate input:
+       IF frame_data is NULL OR empty:
+           RETURN None
+
+2. Try Hume AI:
+       TRY:
+           # Convert to base64 JPEG
+           success, buffer = cv2.imencode('.jpg', frame_data)
+           base64_image = base64.encode(buffer)
+           
+           # Call Hume API
+           client = AsyncHumeClient(api_key=HUME_API_KEY)
+           response = client.stream.send_frame(
+               images=[base64_image],
+               models=["face"]
+           )
+           
+           # Extract predictions
+           predictions = response.face.predictions
+           IF len(predictions) > 0:
+               emotions = predictions[0].emotions
+               top = max(emotions, key=lambda e: e.score)
+               
+               IF top.score >= THRESHOLD (0.2):
+                   RETURN normalize_emotion(top.name)
+       
+       CATCH Exception:
+           LOG error
+
+3. Fallback to OpenCV:
+       gray = cv2.cvtColor(frame_data, cv2.COLOR_BGR2GRAY)
+       faces = detect_faces(gray)
+       
+       IF len(faces) > 0:
+           face_roi = extract_face_region(gray, faces[0])
+           emotion = classify_emotion_opencv(face_roi)
+           RETURN emotion
+
+4. RETURN None
+
+
+FUNCTION normalize_emotion(hume_emotion):
+    mapping = {
+        "Joy": "happy",
+        "Sadness": "sad",
+        "Anger": "angry",
+        "Fear": "anxious",
+        "Surprise": "surprised",
+        "Calmness": "calm",
+        "Concentration": "focused"
+    }
+    RETURN mapping.get(hume_emotion, "neutral")
+
+
+================================================================================
+5. FEEDBACK PROCESSING
+================================================================================
+
+ALGORITHM: process_feedback(feedback_emoji)
+
+INPUT: 
+    feedback_emoji: String ("sad", "neutral", or "happy")
+
+STEPS:
+
+1. Save to database:
+       INSERT INTO session_history (
+           profile_id, start_mood, target_mood, 
+           feedback_emoji, playlist_json, timestamp
+       )
+
+2. Decision logic:
+       IF feedback_emoji IN ["sad", "neutral"]:
+           # REGENERATE playlist
+           session_state["regeneration_count"] += 1
+           session_state.pop("current_playlist")
+           session_state["playlist_regenerated"] = TRUE
+           
+           new_seed = hash(timestamp + regeneration_count)
+           new_playlist = generate_playlist(
+               current_from, current_to, 
+               random_state=new_seed
+           )
+           session_state["current_playlist"] = new_playlist
+       
+       ELSE IF feedback_emoji == "happy":
+           # ADVANCE to next step
+           session_state["current_step"] += 1
+           session_state["regeneration_count"] = 0
+           session_state.pop("current_playlist")
+           
+           IF current_step >= len(emotion_path) - 1:
+               # Journey complete
+               display_success_message()
+               reset_session_state()
+               redirect_to_dashboard()
+           ELSE:
+               # Generate next playlist
+               current_from = emotion_path[current_step]
+               current_to = emotion_path[current_step + 1]
+               new_playlist = generate_playlist(current_from, current_to)
+               session_state["current_playlist"] = new_playlist
+
+3. Rerun application
+
+
+================================================================================
+6. AUTHENTICATION
+================================================================================
+
+ALGORITHM: authenticate_user(email, password, role)
+
+INPUT:
+    email: String
+    password: String
+    role: String ("therapist" or "parent")
+
+OUTPUT:
+    User object or None
+
+STEPS:
+
+1. Normalize input:
+       email = email.strip().lower()
+
+2. Query database:
+       IF role == "therapist":
+           user = SELECT * FROM therapists WHERE email = ?
+       ELSE:
+           user = SELECT * FROM parents WHERE email = ?
+
+3. Verify password:
+       IF user is NULL:
+           RETURN None
+       
+       stored_hash = user.password_hash
+       IF NOT verify_password(password, stored_hash):
+           RETURN None
+
+4. Create session:
+       session_state["user_id"] = user.id
+       session_state["user_role"] = role
+       session_state["user_email"] = email
+       session_state["authenticated"] = TRUE
+
+5. RETURN user
+
+
+FUNCTION hash_password(password):
+    salt = generate_random_hex(16)
+    combined = salt + password
+    digest = SHA256(combined)
+    RETURN salt + "$" + digest
+
+
+FUNCTION verify_password(password, stored_hash):
+    salt, digest = stored_hash.split("$")
+    candidate = SHA256(salt + password)
+    RETURN candidate == digest
+
+
+================================================================================
+7. ANALYTICS CALCULATION
+================================================================================
+
+ALGORITHM: calculate_analytics(profile_id)
+
+INPUT: 
+    profile_id: Integer
+
+OUTPUT: 
+    Dictionary with analytics
+
+STEPS:
+
+1. Query sessions:
+       sessions = SELECT * FROM session_history 
+                  WHERE profile_id = ?
+                  ORDER BY timestamp DESC
+
+2. Calculate metrics:
+       total_sessions = len(sessions)
+       
+       positive = COUNT(sessions WHERE feedback_emoji == "happy")
+       neutral = COUNT(sessions WHERE feedback_emoji == "neutral")
+       negative = COUNT(sessions WHERE feedback_emoji == "sad")
+       
+       success_rate = (positive / total_sessions) × 100
+
+3. Analyze emotions:
+       start_emotions = [s.start_mood FOR s IN sessions]
+       emotion_counts = Counter(start_emotions)
+       most_common = emotion_counts.most_common(3)
+
+4. Calculate trends:
+       recent_sessions = sessions[-10:]
+       recent_success = COUNT(recent WHERE feedback == "happy") / 10 × 100
+       trend = "improving" IF recent_success > success_rate ELSE "stable"
+
+5. RETURN {
+       "total_sessions": total_sessions,
+       "success_rate": success_rate,
+       "positive": positive,
+       "neutral": neutral,
+       "negative": negative,
+       "most_common_emotions": most_common,
+       "trend": trend
+   }
+
+
+================================================================================
+8. KNN MODEL INITIALIZATION
+================================================================================
+
+ALGORITHM: initialize_knn_model(music_df)
+
+INPUT: 
+    music_df: DataFrame with valence, arousal columns
+
+STEPS:
+
+1. Extract features:
+       features = []
+       features.append(music_df["valence"].values)
+       features.append(music_df["arousal"].values)
+       IF "dominance_tags" IN music_df:
+           features.append(normalize(music_df["dominance_tags"]).values)
+
+2. Create feature matrix:
+       feature_matrix = stack_columns(features)
+
+3. Standardize:
+       scaler = StandardScaler()
+       feature_matrix = scaler.fit_transform(feature_matrix)
+
+4. Build KNN model:
+       knn_model = NearestNeighbors(
+           n_neighbors=50,
+           algorithm='ball_tree',
+           metric='euclidean'
+       )
+       knn_model.fit(feature_matrix)
+
+5. RETURN knn_model, scaler, feature_matrix
+
+
+================================================================================
+END OF ALGORITHM PSEUDO CODE
+================================================================================

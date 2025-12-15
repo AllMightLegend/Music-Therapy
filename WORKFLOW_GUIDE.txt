@@ -1,0 +1,394 @@
+================================================================================
+MUSIC THERAPY STUDIO - COMPLETE WORKFLOW GUIDE
+================================================================================
+Step-by-Step: Login → Profile Creation → Music Recommendation → Dashboard
+Version: 2.0 | December 2025
+
+================================================================================
+WORKFLOW OVERVIEW
+================================================================================
+
+PHASE 1: AUTHENTICATION & LOGIN
+--------------------------------
+
+Step 1: User accesses application
+  → Lands on login page
+  → Selects role: "Therapist" or "Parent"
+  → Enters email and password
+
+Step 2: System validates credentials
+  → Hashes password with SHA-256 + random salt
+  → Compares with stored hash in database
+  → Creates session state with user_id, role, email, display_name
+
+Step 3: Redirect based on role
+  → Therapist: Full access to profile creation and session management
+  → Parent: Read-only access to assigned child profiles
+
+
+PHASE 2: PROFILE MANAGEMENT
+----------------------------
+
+Step 4: Therapist creates child profile
+  → Enters child's name
+  → Selects date of birth
+  → Chooses default target mood (calm, happy, relaxed, energized, focused)
+  → Optional: Enters parent/guardian email for invitation
+
+Step 5: System processes profile creation
+  → Generates unique profile_id in database
+  → Stores profile data: child_name, dob, therapist_id, default_target_mood
+  → If parent email provided:
+     - Generates unique invitation token (UUID)
+     - Sends automated email with webapp link and invitation code
+     - Email includes HTML template with step-by-step instructions
+
+Step 6: Parent receives invitation (if applicable)
+  → Email arrives with invitation code
+  → Parent clicks webapp link
+  → Navigates to "Parent Invitation" tab
+  → Enters invitation code and creates account
+  → System links parent to profile via profile_access table
+
+Step 7: User selects active profile
+  → System displays all accessible profiles
+  → Shows profile metadata: child name, DOB, target mood
+  → User clicks "Open Profile" button
+  → System stores active_profile_id in session state
+
+
+PHASE 3: EMOTION DETECTION SESSION
+-----------------------------------
+
+Step 8: Therapist initiates therapy session
+  → System offers two detection modes:
+     A) Snapshot Mode (recommended, more reliable)
+     B) Real-time Video Mode (WebRTC streaming)
+
+Step 9A: Snapshot Mode Process
+  → User clicks "Capture Emotion" button
+  → Camera captures single frame
+  → System sends frame to Hume AI Streaming API
+  → Hume analyzes 48 emotion categories
+  → Returns top emotion with confidence score
+  → System applies threshold (0.2) and normalizes emotion
+  → Displays detected emotion to user
+  → User confirms or retries capture
+
+Step 9B: Real-time Video Mode Process
+  → System initializes WebRTC with 5 Google STUN servers
+  → Video stream starts at 10-15 fps
+  → Every second: captures frame → sends to Hume AI
+  → Detected emotions added to queue
+  → System uses majority voting from last 5 detections
+  → Updates detected_mood in session state continuously
+  → User stops video when ready
+
+Step 10: System validates detection
+  → Compares detected emotion with target mood
+  → IF detected == target:
+     - Display success message: "Already at target mood!"
+     - No playlist needed
+     - Save session to history
+     - Return to profile selection
+  → IF detected != target:
+     - Proceed to music recommendation phase
+
+
+PHASE 4: MUSIC RECOMMENDATION GENERATION
+-----------------------------------------
+
+Step 11: Calculate emotion transition path
+  → Call find_emotion_path(detected_emotion, target_mood)
+  → BFS algorithm searches emotion transition graph
+  → Ensures minimum 2 transitions (3+ emotions)
+  → Example path: sad → melancholic → somber → neutral → content → calm
+  → Store emotion_path in session state (used for entire journey)
+
+Step 12: Validate path requirements
+  → Check if path length >= 3 emotions
+  → If too short: extend with intermediate emotions
+  → If no graph path exists: create artificial path with interpolation
+  → Display journey overview: "5 transitions required to reach Calm"
+
+Step 13: Extract current transition step
+  → current_step = session_state["current_transition_step"] (starts at 0)
+  → current_from = emotion_path[current_step]
+  → current_to = emotion_path[current_step + 1]
+  → Example: Step 1 → sad to melancholic
+
+Step 14: Generate playlist using ML algorithm
+  → System calls AdvancedMusicRecommender.generate_playlist()
+  → Converts emotions to VAD coordinates (Valence, Arousal, Dominance)
+  → Standardizes features using StandardScaler (mean=0, std=1)
+  → Applies K-Nearest Neighbors with ball-tree algorithm
+  → Finds 50 nearest songs for each transition point
+  → Uses cubic easing for smooth emotional progression
+  → Selects 5 songs with weighted random selection
+  → Applies diversity filter to avoid repetition
+  → Stores playlist in session_state["current_playlist"]
+
+Step 15: Display playlist with embedded players
+  → Shows transition: "🎵 Sad → Melancholic (Step 1 of 5)"
+  → Lists 5 songs: track name, artist name
+  → Embeds Spotify player for each song
+  → User listens to playlist during therapy session
+
+
+PHASE 5: FEEDBACK & SMART ADAPTATION
+-------------------------------------
+
+Step 16: User provides feedback
+  → Three options displayed:
+     😞 Not Effective | 😐 Neutral | 😊 Great
+  → User clicks appropriate button
+
+Step 17: System saves session to database
+  → INSERT INTO session_history:
+     - profile_id
+     - start_mood (current_from)
+     - target_mood (current_to)
+     - feedback_emoji (sad/neutral/happy)
+     - playlist_json (all 5 songs)
+     - timestamp (auto-generated)
+
+Step 18: Smart feedback processing
+
+  IF feedback == "sad" OR feedback == "neutral":
+     → REGENERATE PLAYLIST (stay on same transition)
+     → Increment regeneration_count
+     → Clear current_playlist from session state
+     → Set playlist_regenerated flag to TRUE
+     → Generate new playlist with different random_seed
+     → Display: "🔄 Regenerated Playlist (Attempt #2)"
+     → Stay on current step (e.g., still on sad → melancholic)
+     → New songs will be different due to weighted randomness
+  
+  IF feedback == "happy":
+     → ADVANCE TO NEXT STEP
+     → Increment current_transition_step by 1
+     → Reset regeneration_count to 0
+     → Clear current_playlist from session state
+     → Check if journey complete:
+        
+        IF current_step >= len(emotion_path) - 1:
+           → Display: "🎉 Journey Complete!"
+           → Show success message
+           → Reset all session variables
+           → Redirect to progress dashboard
+        
+        ELSE:
+           → Move to next transition in path
+           → current_from = emotion_path[new_step]
+           → current_to = emotion_path[new_step + 1]
+           → Generate playlist for new transition
+           → Display: "✅ Advancing to Step 2: melancholic → somber"
+
+Step 19: Repeat phases 4-5 until journey complete
+  → Continue through all transitions in emotion_path
+  → Each step requires positive feedback to advance
+  → Negative feedback regenerates current step
+  → Journey completes when final target mood reached
+
+
+PHASE 6: PROGRESS TRACKING & DASHBOARD
+---------------------------------------
+
+Step 20: Query session history from database
+  → SELECT * FROM session_history WHERE profile_id = ?
+  → ORDER BY timestamp DESC
+  → Retrieve all completed sessions for the profile
+
+Step 21: Calculate analytics and statistics
+  → Total sessions completed
+  → Feedback distribution: positive, neutral, negative
+  → Success rate = (positive feedback / total sessions) × 100%
+  → Most common starting emotions
+  → Target mood preferences
+  → Average regenerations per journey
+  → Timeline of sessions with dates
+
+Step 22: Generate visualizations
+  → Mood Distribution Pie Chart (matplotlib)
+     - Shows frequency of each starting emotion
+     - Color-coded segments
+  
+  → Feedback Success Rate Bar Chart
+     - Green bar: Positive feedback count
+     - Gray bar: Neutral feedback count
+     - Red bar: Negative feedback count
+  
+  → Progress Timeline Line Chart
+     - X-axis: Date of sessions
+     - Y-axis: Cumulative success rate (%)
+     - Shows trend over time
+
+Step 23: Display therapist insights
+  → Session summary cards with key metrics
+  → Highlighted trends: "improving" or "stable"
+  → Recommendations for future sessions
+  → List of recent playlists with feedback
+
+Step 24: Parent view (read-only mode)
+  → Same visualizations and statistics
+  → Cannot initiate new sessions
+  → Cannot modify profiles
+  → Can view all historical playlists
+  → Real-time sync with therapist's sessions
+  → Shows child's emotional progress over time
+
+
+PHASE 7: PROFILE UPDATES & MANAGEMENT
+--------------------------------------
+
+Step 25: Change target mood (therapist only)
+  → Display dropdown with 5 target mood options
+  → Select new target mood
+  → Click "💾 Update" button
+  → System updates database: UPDATE profiles SET default_target_mood = ?
+  → If profile is active: clear emotion_path to force recalculation
+  → Display success message: "✅ Target mood changed to Happy"
+
+Step 26: Delete profile (therapist only)
+  → Click "🗑️ Delete" button on profile card
+  → System displays confirmation dialog
+  → Warning: "This will permanently delete all session history"
+  → User confirms or cancels
+  → If confirmed:
+     - Cascading delete: session_history, profile_access, parent_invites
+     - DELETE FROM profiles WHERE id = ? AND therapist_id = ?
+     - Display success message
+     - Clear active_profile if it was deleted
+
+Step 27: Email invitations (automated)
+  → When profile created with parent email:
+     - System generates invitation code (UUID)
+     - Sends HTML email with:
+       * Webapp link (https://music-therapy-aiml-tmsl.streamlit.app/)
+       * Invitation code displayed prominently
+       * Step-by-step instructions
+       * Benefits list
+       * Therapist name personalization
+     - Email uses SMTP with TLS (Gmail, Outlook, Yahoo supported)
+
+
+================================================================================
+SESSION STATE MANAGEMENT
+================================================================================
+
+Key Variables Tracked:
+----------------------
+session_state["authenticated"] = TRUE/FALSE
+session_state["user_id"] = Integer (therapist or parent ID)
+session_state["user_role"] = "therapist" or "parent"
+session_state["user_email"] = String
+session_state["user_display_name"] = String
+
+session_state["active_profile_id"] = Integer
+session_state["detected_mood"] = String (e.g., "sad")
+
+session_state["emotion_path"] = List (e.g., ["sad", "melancholic", "somber", "calm"])
+session_state["current_transition_step"] = Integer (0 to len(path)-2)
+session_state["current_from"] = String (start emotion of current step)
+session_state["current_to"] = String (target emotion of current step)
+
+session_state["current_playlist"] = DataFrame (5 songs)
+session_state["regeneration_count"] = Integer (0, 1, 2, ...)
+session_state["playlist_regenerated"] = TRUE/FALSE (flag for display)
+
+
+================================================================================
+DATA FLOW SUMMARY
+================================================================================
+
+User Login
+   ↓
+Profile Selection/Creation
+   ↓
+Emotion Detection (Hume AI / OpenCV)
+   ↓
+Same Mood Check → [YES] Success Message, Return
+   ↓ [NO]
+Path Finding (BFS with min 2 transitions)
+   ↓
+Playlist Generation (KNN + Cubic Easing)
+   ↓
+Display 5 Songs (Spotify Embeds)
+   ↓
+Feedback Collection
+   ↓
+Decision Point:
+   ├─ Negative/Neutral → Regenerate Playlist (stay on step)
+   └─ Positive → Advance to Next Step
+         ↓
+   Check if Complete → [NO] Generate Next Playlist
+         ↓ [YES]
+   Journey Complete → Progress Dashboard
+
+
+================================================================================
+USER ROLES & PERMISSIONS
+================================================================================
+
+Therapist Permissions:
+- Create child profiles ✓
+- Conduct therapy sessions ✓
+- Generate playlists ✓
+- Provide feedback ✓
+- Invite parents ✓
+- View progress dashboard ✓
+- Update target mood ✓
+- Delete profiles ✓
+
+Parent Permissions:
+- View assigned child profiles ✓
+- View session history (read-only) ✓
+- View progress dashboard (read-only) ✓
+- Cannot create profiles ✗
+- Cannot conduct sessions ✗
+- Cannot modify settings ✗
+
+
+================================================================================
+KEY FEATURES EXPLAINED
+================================================================================
+
+1. SAME MOOD DETECTION
+   - If detected emotion matches target mood, no playlist needed
+   - Saves time and recognizes child is already in desired state
+   - Session still recorded in history
+
+2. MINIMUM 2 TRANSITIONS (ISO PRINCIPLE)
+   - Every journey has at least 3 emotions (2 transitions)
+   - Ensures gradual therapeutic progression
+   - Prevents abrupt emotional jumps
+
+3. SMART FEEDBACK LOOP
+   - Negative feedback → Regenerate with different songs
+   - Positive feedback → Advance to next transition
+   - Allows therapist to adjust in real-time
+
+4. PLAYLIST REGENERATION
+   - Uses different random seed each time
+   - Weighted selection ensures variety (~10% overlap)
+   - Same therapeutic goal, different musical approach
+
+5. MULTI-STEP JOURNEYS
+   - Complex transitions split into manageable steps
+   - Example: sad → calm requires 5 transitions (6 emotions)
+   - Each step gets dedicated 5-song playlist
+
+6. PROGRESS TRACKING
+   - All sessions saved to database
+   - Visualizations show trends over time
+   - Success rate calculated automatically
+
+7. COLLABORATIVE CARE
+   - Parents receive automated invitations
+   - Shared view of child's progress
+   - Therapist maintains control of treatment
+
+
+================================================================================
+END OF WORKFLOW GUIDE
+================================================================================

@@ -1,0 +1,423 @@
+================================================================================
+MUSIC THERAPY STUDIO - MATHEMATICAL FORMULAS
+================================================================================
+All Formulas Used in the Recommendation System
+Version: 2.0 | December 2025
+
+================================================================================
+1. DISTANCE METRICS
+================================================================================
+
+EUCLIDEAN DISTANCE (Emotional Similarity):
+-------------------------------------------
+Distance between two points in VAD space:
+
+d(p₁, p₂) = √[(v₂ - v₁)² + (a₂ - a₁)² + (d₂ - d₁)²]
+
+Where:
+- v = Valence (negative to positive emotion)
+- a = Arousal (low to high energy)
+- d = Dominance (weak to strong)
+
+Example:
+sad (-0.7, -0.6) to happy (0.8, 0.8)
+d = √[(0.8-(-0.7))² + (0.8-(-0.6))²]
+  = √[(1.5)² + (1.4)²]
+  = √[2.25 + 1.96]
+  = √4.21
+  = 2.05
+
+
+MANHATTAN DISTANCE (Alternative):
+----------------------------------
+d(p₁, p₂) = |v₂ - v₁| + |a₂ - a₁| + |d₂ - d₁|
+
+Example:
+sad to happy
+d = |0.8-(-0.7)| + |0.8-(-0.6)|
+  = 1.5 + 1.4
+  = 2.9
+
+
+================================================================================
+2. INTERPOLATION & EASING
+================================================================================
+
+LINEAR INTERPOLATION:
+---------------------
+value(t) = start + (end - start) × t
+
+Where t ∈ [0, 1]
+
+
+CUBIC EASING (Ease-In-Out):
+----------------------------
+For smoother transitions:
+
+IF t < 0.5:
+    eased_t = 4t³
+
+ELSE:
+    eased_t = 1 - [(-2t + 2)³ / 2]
+
+Final interpolated value:
+    value(t) = start + (end - start) × eased_t
+
+Example progression (t values):
+t = 0.00 → eased = 0.000 (start, slow)
+t = 0.25 → eased = 0.063 (accelerating)
+t = 0.50 → eased = 0.500 (midpoint)
+t = 0.75 → eased = 0.938 (decelerating)
+t = 1.00 → eased = 1.000 (end, slow)
+
+
+INTERMEDIATE POINT CALCULATION:
+--------------------------------
+For creating artificial paths with N intermediate emotions:
+
+Position of intermediate emotion i (i = 1 to N):
+    v_int_i = v_start + (i / (N+1)) × (v_target - v_start)
+    a_int_i = a_start + (i / (N+1)) × (a_target - a_start)
+
+Example (2 intermediates):
+    int1: v = v_start + (1/3)(v_target - v_start)
+    int2: v = v_start + (2/3)(v_target - v_start)
+
+
+================================================================================
+3. FEATURE STANDARDIZATION
+================================================================================
+
+Z-SCORE NORMALIZATION:
+----------------------
+z = (x - μ) / σ
+
+Where:
+- x = original value
+- μ = mean of all values
+- σ = standard deviation
+
+Purpose: Scale all features to mean=0, std=1
+
+Example:
+values = [0.2, 0.5, 0.8, -0.3, 0.1]
+μ = mean(values) = 0.26
+σ = std(values) = 0.40
+
+For x = 0.8:
+z = (0.8 - 0.26) / 0.40 = 1.35
+
+
+MIN-MAX NORMALIZATION (Alternative):
+-------------------------------------
+x_norm = (x - x_min) / (x_max - x_min)
+
+Scales to [0, 1] range
+
+To scale to [-1, 1]:
+x_norm = 2 × [(x - x_min) / (x_max - x_min)] - 1
+
+
+================================================================================
+4. PROBABILITY & WEIGHTING
+================================================================================
+
+EXPONENTIAL WEIGHTING:
+----------------------
+For converting scores to selection probabilities:
+
+Step 1: Shift scores to positive range
+    s'ᵢ = sᵢ - min(s₁, s₂, ..., sₙ) + ε
+
+Where ε = 0.1 (small constant to avoid zero)
+
+Step 2: Exponential transformation
+    w(sᵢ) = e^(s'ᵢ)
+
+Step 3: Normalize to probabilities
+    P(sᵢ) = e^(s'ᵢ) / Σⱼ e^(s'ⱼ)
+
+Example:
+scores = [-1.2, -0.8, -1.5, -0.5]
+shifted = [0.1, 0.5, 0.0, 0.8]
+weights = [e^0.1, e^0.5, e^0.0, e^0.8]
+        = [1.105, 1.649, 1.000, 2.226]
+sum = 5.980
+
+P(s₁) = 1.105 / 5.980 = 18.5%
+P(s₂) = 1.649 / 5.980 = 27.6%
+P(s₃) = 1.000 / 5.980 = 16.7%
+P(s₄) = 2.226 / 5.980 = 37.2%
+
+
+SOFTMAX FUNCTION (Alternative):
+--------------------------------
+P(sᵢ) = e^(sᵢ/T) / Σⱼ e^(sⱼ/T)
+
+Where T = temperature parameter (controls sharpness)
+
+
+================================================================================
+5. SONG SCORING
+================================================================================
+
+COMPOSITE SCORE:
+----------------
+score(song) = w₁ × distance_score + w₂ × diversity_score
+
+Distance score (negative, closer is better):
+    distance_score = -||song_features - target_features||₂
+
+Diversity score (bonus for variety):
+    diversity_score = 0.3 if len(used_songs) > 0 else 0.0
+
+Default weights:
+    w₁ = 1.0 (distance)
+    w₂ = 1.0 (diversity)
+
+Total score:
+    score = -distance + 0.3
+
+
+================================================================================
+6. PERFORMANCE METRICS
+================================================================================
+
+SUCCESS RATE:
+-------------
+success_rate (%) = (N_positive / N_total) × 100
+
+Where:
+- N_positive = count of sessions with "happy" feedback
+- N_total = total number of sessions
+
+Example:
+20 total sessions
+14 positive, 4 neutral, 2 negative
+
+success_rate = (14 / 20) × 100 = 70%
+
+
+AVERAGE REGENERATION RATE:
+---------------------------
+avg_regenerations = Σ(regeneration_count) / N_unique_journeys
+
+Where:
+- Regeneration_count = number of regenerations per session
+- N_unique_journeys = distinct (start_mood, target_mood, date) combinations
+
+Example:
+Journey 1: sad→calm, regenerations = [0, 1, 2] → total 3
+Journey 2: angry→calm, regenerations = [0] → total 0
+
+avg_regenerations = (3 + 0) / 2 = 1.5
+
+
+TRANSITION SMOOTHNESS:
+----------------------
+smoothness = (1 / (N-1)) × Σᵢ₌₁ᴺ⁻¹ d(songᵢ, songᵢ₊₁)
+
+Where:
+- N = number of songs in playlist
+- d(songᵢ, songᵢ₊₁) = Euclidean distance between consecutive songs
+
+Lower value = smoother transitions
+
+Example:
+5 songs with distances: [0.15, 0.18, 0.12, 0.20]
+smoothness = (0.15 + 0.18 + 0.12 + 0.20) / 4
+           = 0.65 / 4
+           = 0.163
+
+
+PLAYLIST DIVERSITY (OVERLAP):
+------------------------------
+overlap (%) = (N_shared / N_total) × 100
+
+Where:
+- N_shared = number of songs appearing in both playlists
+- N_total = total songs in one playlist (typically 5)
+
+Example:
+Playlist 1: [A, B, C, D, E]
+Playlist 2: [A, F, G, H, I]
+N_shared = 1 (only song A)
+
+overlap = (1 / 5) × 100 = 20%
+
+
+================================================================================
+7. STATISTICAL FORMULAS
+================================================================================
+
+MEAN (AVERAGE):
+---------------
+μ = (1/N) × Σᵢ₌₁ᴺ xᵢ
+
+Example:
+values = [2, 4, 6, 8, 10]
+μ = (2 + 4 + 6 + 8 + 10) / 5 = 30 / 5 = 6
+
+
+STANDARD DEVIATION:
+-------------------
+σ = √[(1/N) × Σᵢ₌₁ᴺ (xᵢ - μ)²]
+
+Example:
+values = [2, 4, 6, 8, 10], μ = 6
+σ = √[((2-6)² + (4-6)² + (6-6)² + (8-6)² + (10-6)²) / 5]
+  = √[(16 + 4 + 0 + 4 + 16) / 5]
+  = √[40 / 5]
+  = √8
+  = 2.83
+
+
+VARIANCE:
+---------
+σ² = (1/N) × Σᵢ₌₁ᴺ (xᵢ - μ)²
+
+(Square of standard deviation)
+
+
+CORRELATION COEFFICIENT (Pearson):
+-----------------------------------
+r = Σ[(xᵢ - x̄)(yᵢ - ȳ)] / √[Σ(xᵢ - x̄)² × Σ(yᵢ - ȳ)²]
+
+Range: -1 to +1
+- r = +1: perfect positive correlation
+- r = 0: no correlation
+- r = -1: perfect negative correlation
+
+
+================================================================================
+8. PASSWORD HASHING
+================================================================================
+
+SHA-256 HASH WITH SALT:
+-----------------------
+hash = SHA256(salt + password)
+
+Where:
+- salt = random 16-byte hex string (32 characters)
+- password = user's plaintext password
+
+Stored format:
+    stored_hash = salt + "$" + hash
+
+Example:
+password = "mypassword123"
+salt = "a1b2c3d4e5f67890"
+combined = "a1b2c3d4e5f67890mypassword123"
+hash = SHA256(combined)
+stored = "a1b2c3d4e5f67890$hash_value"
+
+
+================================================================================
+9. VAD COORDINATES
+================================================================================
+
+EMOTION COORDINATE SYSTEM:
+--------------------------
+Each emotion maps to 2D or 3D space:
+
+(Valence, Arousal)
+- Valence: -1 (negative) to +1 (positive)
+- Arousal: -1 (low energy) to +1 (high energy)
+
+Example coordinates:
+happy:    (0.8, 0.8)   High positive, high energy
+sad:      (-0.7, -0.6) Negative, low energy
+angry:    (-0.6, 0.7)  Negative, high energy
+calm:     (0.7, -0.7)  Positive, very low energy
+anxious:  (-0.3, 0.6)  Slightly negative, high energy
+neutral:  (0.0, 0.0)   Center point
+
+
+DISTANCE IN VAD SPACE:
+----------------------
+For 2D (V, A):
+    d = √[(v₂ - v₁)² + (a₂ - a₁)²]
+
+For 3D (V, A, D):
+    d = √[(v₂ - v₁)² + (a₂ - a₁)² + (d₂ - d₁)²]
+
+
+================================================================================
+10. KNN ALGORITHM
+================================================================================
+
+K-NEAREST NEIGHBORS DISTANCE:
+------------------------------
+For each query point q, find k nearest songs:
+
+1. Calculate distances to all N songs:
+   dᵢ = ||fᵢ - q||₂  (for i = 1 to N)
+   
+   Where:
+   - fᵢ = feature vector of song i
+   - q = query point (target emotional state)
+   - ||·||₂ = Euclidean distance
+
+2. Sort distances and select k smallest
+
+3. Return indices of k nearest neighbors
+
+Complexity: O(N log N) for sorting
+With ball-tree: O(log N) per query
+
+
+BALL-TREE ALGORITHM:
+--------------------
+Hierarchical data structure for efficient nearest neighbor search
+
+Query complexity: O(log N)
+Space complexity: O(N)
+
+Better than brute force O(N) when N is large
+
+
+================================================================================
+11. TIME-BASED CALCULATIONS
+================================================================================
+
+SESSION DURATION ESTIMATE:
+--------------------------
+duration (minutes) = N_songs × avg_song_length
+
+Assuming avg_song_length = 3.5 minutes:
+    duration = 5 × 3.5 = 17.5 minutes
+
+
+JOURNEY COMPLETION TIME:
+-------------------------
+total_time = N_transitions × session_duration × (1 + regeneration_rate)
+
+Example:
+5 transitions, 17.5 min per session, 1.5 avg regenerations
+total_time = 5 × 17.5 × (1 + 1.5)
+           = 5 × 17.5 × 2.5
+           = 218.75 minutes
+           ≈ 3.6 hours
+
+
+================================================================================
+12. RANDOM SEED GENERATION
+================================================================================
+
+HASH-BASED SEED:
+----------------
+seed = hash(timestamp + regeneration_count) mod 2³²
+
+Example:
+timestamp = 1702656000
+regeneration_count = 2
+combined = "17026560002"
+seed = hash(combined) mod 4294967296
+
+
+Purpose: Ensures different playlists on regeneration
+
+
+================================================================================
+END OF FORMULAS
+================================================================================
