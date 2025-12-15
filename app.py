@@ -191,7 +191,8 @@ def apply_theme(theme_key: str) -> None:
     }}
 
     .block-container {{
-        padding: 2.2rem 2.5rem 3.2rem 2.5rem;
+        padding: 3rem 2.5rem 3.2rem 2.5rem;
+        margin-top: 2rem;
         border-radius: 1.4rem;
         background: var(--app-surface);
         box-shadow: var(--app-shadow);
