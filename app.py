@@ -692,12 +692,39 @@ def render_child_selection() -> None:
                             success_msg = f"Profile for {child_name} created."
                             if guardian_email:
                                 token = database.create_parent_invite(profile_id, guardian_email)
-                                success_msg += " Invitation code generated below."
-                                st.success(success_msg)
-                                st.code(token, language=None)
-                                st.caption(
-                                    "Share this code with the parent/guardian so they can complete their invitation."
-                                )
+                                success_msg += " Invitation code generated."
+                                
+                                # Try to send email automatically
+                                import email_service
+                                therapist_name = user.get("name", "Your Therapist")
+                                
+                                if email_service.is_email_configured():
+                                    email_success, email_msg = email_service.send_invitation_email(
+                                        parent_email=guardian_email,
+                                        child_name=child_name,
+                                        invitation_code=token,
+                                        therapist_name=therapist_name
+                                    )
+                                    
+                                    if email_success:
+                                        st.success(success_msg + f" ✅ Email sent to {guardian_email}")
+                                        st.info(
+                                            f"📧 An invitation email has been sent to **{guardian_email}** with instructions.\n\n"
+                                            f"The parent can use the invitation code to create their account."
+                                        )
+                                    else:
+                                        st.warning(success_msg + f" ⚠️ Email could not be sent: {email_msg}")
+                                        st.code(token, language=None)
+                                        st.caption(
+                                            "Email service unavailable. Please share this code manually with the parent/guardian."
+                                        )
+                                else:
+                                    st.success(success_msg)
+                                    st.code(token, language=None)
+                                    st.caption(
+                                        "📋 Share this code with the parent/guardian so they can complete their invitation.\n\n"
+                                        "💡 **Tip**: Configure email settings to automatically send invitations."
+                                    )
                             else:
                                 st.success(success_msg)
                             trigger_rerun()
