@@ -1576,39 +1576,38 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     """
     st.markdown(insights_html, unsafe_allow_html=True)
 
-    mood_map = {
-        "angry": -2.0,
-        "fear": -1.4,
-        "sad": -1.0,
-        "disgust": -1.2,
-        "neutral": 0.0,
-        "surprise": 0.6,
-        "happy": 1.0,
-    }
-    mood_numeric = history_df["start_mood"].map(mood_map).fillna(0)
-
     chart_cols = st.columns(2)
+    
+    # Success Rate Trend - Simple and clear for therapists
     with chart_cols[0]:
-        st.markdown('<div class="chart-frame"><h4>Mood Trajectory</h4>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-frame"><h4>Session Success Trend</h4>', unsafe_allow_html=True)
+        # Calculate rolling success rate (positive feedback over last 5 sessions)
+        history_df['is_positive'] = history_df["feedback_emoji"].str.lower().eq("happy").astype(int)
+        history_df['rolling_success'] = history_df['is_positive'].rolling(window=min(5, len(history_df)), min_periods=1).mean() * 100
+        
         fig, ax = plt.subplots(figsize=(6, 3), facecolor="none")
         ax.set_facecolor("none")
-        ax.plot(history_df["timestamp"], mood_numeric, color="#3a60e6", linewidth=2.3, marker="o")
-        ax.fill_between(history_df["timestamp"], mood_numeric, color="#3a60e6", alpha=0.12)
-        ax.set_ylabel("Valence-Arousal blend", color="white")
-        ax.set_ylim(-2.2, 1.4)
+        ax.plot(history_df["timestamp"], history_df['rolling_success'], color="#4ade80", linewidth=2.5, marker="o", markersize=5)
+        ax.fill_between(history_df["timestamp"], history_df['rolling_success'], color="#4ade80", alpha=0.2)
+        ax.axhline(y=70, color='#fbbf24', linestyle='--', linewidth=1.5, alpha=0.5, label='Target: 70%')
+        ax.set_ylabel("Success Rate (%)", color="white", fontsize=10)
+        ax.set_ylim(0, 105)
         ax.grid(axis="y", linestyle="--", alpha=0.25)
         ax.tick_params(axis="x", rotation=20, labelsize=8, colors="white")
-        ax.tick_params(axis="y", labelsize=8, colors="white")
+        ax.tick_params(axis="y", labelsize=9, colors="white")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["bottom"].set_color("white")
         ax.spines["left"].set_color("white")
+        ax.legend(loc='upper left', fontsize=8, framealpha=0.3, facecolor='gray')
         st.pyplot(fig, transparent=True)
         plt.close(fig)
+        st.caption("Rolling average of positive feedback (last 5 sessions)")
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # Feedback Mix Pie Chart
     with chart_cols[1]:
-        st.markdown('<div class="chart-frame"><h4>Feedback Mix</h4>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-frame"><h4>Feedback Distribution</h4>', unsafe_allow_html=True)
         feedback_counts = history_df["feedback_emoji"].value_counts()
         fig, ax = plt.subplots(figsize=(4, 3.2), facecolor="none")
         ax.set_facecolor("none")
@@ -1616,7 +1615,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
             ax.axis("off")
             ax.text(0.5, 0.5, "No feedback yet", ha="center", va="center", fontsize=10, color="white")
         else:
-            colors = ["#3a60e6", "#8fa5ff", "#d9e0ff"]
+            colors = ["#4ade80", "#fbbf24", "#f87171"]  # Green (Great), Yellow (Okay), Red (Poor)
             wedges, texts, autotexts = ax.pie(
                 feedback_counts,
                 labels=[label.title() for label in feedback_counts.index],
@@ -1635,27 +1634,39 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         ax.axis("equal")
         st.pyplot(fig, transparent=True)
         plt.close(fig)
+        st.caption("Overall session satisfaction ratings")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="chart-frame"><h4>Weekly Cadence</h4>', unsafe_allow_html=True)
-    weekly_sessions = history_df.set_index("timestamp").resample("W").size()
-    fig, ax = plt.subplots(figsize=(10, 3.2), facecolor="none")
-    ax.set_facecolor("none")
-    if weekly_sessions.empty:
-        ax.axis("off")
-        ax.text(0.5, 0.5, "Sessions will appear here once logged.", ha="center", va="center", fontsize=10, color="white")
-    else:
-        ax.bar(weekly_sessions.index, weekly_sessions.values, width=5, color="#6a85f7")
-        ax.set_ylabel("Sessions per week", color="white")
-        ax.tick_params(axis="x", rotation=20, labelsize=8, colors="white")
-        ax.tick_params(axis="y", labelsize=8, colors="white")
-        ax.grid(axis="y", linestyle="--", alpha=0.25)
+    # Common Emotional Journeys - Very helpful for therapists
+    st.markdown('<div class="chart-frame"><h4>Most Common Emotional Journeys</h4>', unsafe_allow_html=True)
+    st.markdown('<p style="color: #a0aec0; font-size: 14px; margin-bottom: 10px;">Understanding frequent transitions helps plan future sessions</p>', unsafe_allow_html=True)
+    
+    # Create journey combinations
+    history_df['journey'] = history_df['start_mood'].str.title() + ' → ' + history_df['target_mood'].str.title()
+    journey_counts = history_df['journey'].value_counts().head(6)
+    
+    if not journey_counts.empty:
+        fig, ax = plt.subplots(figsize=(10, 3.5), facecolor="none")
+        ax.set_facecolor("none")
+        bars = ax.barh(journey_counts.index, journey_counts.values, color="#8b5cf6", alpha=0.85)
+        
+        # Add count labels on bars
+        for i, (bar, count) in enumerate(zip(bars, journey_counts.values)):
+            ax.text(count + 0.3, i, f'{int(count)}x', va='center', color='white', fontsize=9, fontweight='bold')
+        
+        ax.set_xlabel("Number of Sessions", color="white", fontsize=10)
+        ax.tick_params(axis="y", labelsize=9, colors="white")
+        ax.tick_params(axis="x", labelsize=9, colors="white")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["bottom"].set_color("white")
         ax.spines["left"].set_color("white")
-    st.pyplot(fig, transparent=True)
-    plt.close(fig)
+        ax.grid(axis="x", linestyle="--", alpha=0.2)
+        plt.tight_layout()
+        st.pyplot(fig, transparent=True)
+        plt.close(fig)
+    else:
+        st.info("Complete more sessions to see journey patterns")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.subheader("Recent Sessions")
