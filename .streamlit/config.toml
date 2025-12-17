@@ -11,9 +11,17 @@ fileWatcherType = "auto"
 gatherUsageStats = false
 
 [theme]
-# You can customize theme here if needed
-# primaryColor = "#3A86FF"
-# backgroundColor = "#ffffff"
-# secondaryBackgroundColor = "#f0f2f6"
-# textColor = "#262730"
+# Primary Color: A calming Teal (replaces the default Red/Pink)
+primaryColor = "#00ADB5"
 
+# Background Color: Very dark grey (matches your "Midnight" look)
+backgroundColor = "#0E1117"
+
+# Secondary Background: Slightly lighter grey for sidebar/inputs
+secondaryBackgroundColor = "#262730"
+
+# Text Color: Off-white for easy reading without eye strain
+textColor = "#FAFAFA"
+
+# Font: Clean and modern
+font = "sans serif"
