@@ -1187,6 +1187,12 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         with col2:
             if st.button("Use This Mood", key="webcam_lock", disabled=not normalized_last):
                 st.session_state["detected_mood"] = normalized_last
+                # Clear old journey data to force recalculation with new mood
+                st.session_state.pop("emotion_path", None)
+                st.session_state.pop("current_playlist", None)
+                st.session_state.pop("current_from", None)
+                st.session_state.pop("current_to", None)
+                st.session_state["current_transition_step"] = 0
                 st.success(f"✅ Using {normalized_last.title()} as starting mood!")
 
     detected = st.session_state.get("detected_mood")
