@@ -37,11 +37,15 @@
         }
 
         .right-pane {
-            width: 50%;
-            background-image: url('hero.jpg'); /* YOUR IMAGE HERE */
-            background-size: cover;
-            background-position: center top; /* Focus on face/head */
-            background-repeat: no-repeat;
+             width: 50%;
+        /* This adds a gradient that fades from Black (left) to Transparent (right) */
+        background-image: linear-gradient(to right, #111111 0%, transparent 20%),
+          url("hero.jpg");
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+        /* Optional: This blends the edge even more smoothly */
+        box-shadow: inset 50px 0 50px -20px #111111;
         }
 
         /* 3. HEADER (Logo + Top Right Login) */
