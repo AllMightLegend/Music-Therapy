@@ -1761,8 +1761,12 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         plt.clf()
         plt.close('all')
         
-        fig, ax = plt.subplots(figsize=(6, 3.2), facecolor=bg_color)
-        ax.set_facecolor(bg_color)
+        # Use solid background instead of RGBA tuple for better compatibility
+        fig_bg = 'white' if is_light_theme else '#0e1117'
+        ax_bg = 'white' if is_light_theme else '#0e1117'
+        
+        fig, ax = plt.subplots(figsize=(6, 3.2), facecolor=fig_bg)
+        ax.set_facecolor(ax_bg)
         
         # Plot line with gradient effect
         ax.plot(history_df["timestamp"], history_df['rolling_success'], 
@@ -1789,11 +1793,14 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         ax.spines["left"].set_linewidth(1.5)
         
         legend = ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
-        legend.get_frame().set_facecolor(bg_color if is_light_theme else 'gray')
+        if is_light_theme:
+            legend.get_frame().set_facecolor('white')
+        else:
+            legend.get_frame().set_facecolor('#262730')
         legend.get_frame().set_edgecolor(spine_color)
         
         plt.tight_layout()
-        st.pyplot(fig, clear_figure=True)
+        st.pyplot(fig)
         plt.close(fig)
         st.caption("📊 Rolling average of positive feedback (last 5 sessions)")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1806,8 +1813,12 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         # Clear any previous figures
         plt.clf()
         
-        fig, ax = plt.subplots(figsize=(4.5, 3.4), facecolor=bg_color)
-        ax.set_facecolor(bg_color)
+        # Use solid background
+        fig_bg = 'white' if is_light_theme else '#0e1117'
+        ax_bg = 'white' if is_light_theme else '#0e1117'
+        
+        fig, ax = plt.subplots(figsize=(4.5, 3.4), facecolor=fig_bg)
+        ax.set_facecolor(ax_bg)
         
         if feedback_counts.empty:
             ax.axis("off")
@@ -1828,9 +1839,9 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
                 pctdistance=0.75
             )
             
-            # Donut hole with gradient effect
+            # Donut hole with solid colors
             if is_light_theme:
-                centre_circle = plt.Circle((0, 0), 0.65, fc="#f8fafc", ec="#e2e8f0", linewidth=2)
+                centre_circle = plt.Circle((0, 0), 0.65, fc="white", ec="#e2e8f0", linewidth=2)
                 percentage_color = "#0f172a"  # Dark text for light theme
             else:
                 centre_circle = plt.Circle((0, 0), 0.65, fc="#1e293b", ec="#334155", linewidth=2)
@@ -1850,7 +1861,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         
         ax.axis("equal")
         plt.tight_layout()
-        st.pyplot(fig, clear_figure=True)
+        st.pyplot(fig)
         plt.close(fig)
         st.caption("🎯 Overall session satisfaction ratings")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1871,8 +1882,12 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         # Clear any previous figures
         plt.clf()
         
-        fig, ax = plt.subplots(figsize=(10, 4), facecolor=bg_color)
-        ax.set_facecolor(bg_color)
+        # Use solid background
+        fig_bg = 'white' if is_light_theme else '#0e1117'
+        ax_bg = 'white' if is_light_theme else '#0e1117'
+        
+        fig, ax = plt.subplots(figsize=(10, 4), facecolor=fig_bg)
+        ax.set_facecolor(ax_bg)
         
         # Gradient colors for bars
         colors_gradient = plt.cm.viridis(np.linspace(0.3, 0.9, len(journey_counts)))
@@ -1904,7 +1919,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         ax.grid(axis="x", linestyle="--", alpha=0.15, color=grid_color, linewidth=1)
         
         plt.tight_layout()
-        st.pyplot(fig, clear_figure=True)
+        st.pyplot(fig)
         plt.close(fig)
     else:
         st.info("Complete more sessions to see journey patterns")
