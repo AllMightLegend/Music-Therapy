@@ -1685,6 +1685,7 @@ def render_new_session(profile: Dict[str, Any]) -> None:
 def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     st.title(f"Progress Dashboard — {profile['child_name']}")
 
+    # Force fresh data fetch - no caching
     history_df = database.get_history(profile["id"])
     if history_df.empty:
         st.info("No session history yet.")
@@ -1756,6 +1757,10 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         history_df['is_positive'] = history_df["feedback_emoji"].str.lower().eq("happy").astype(int)
         history_df['rolling_success'] = history_df['is_positive'].rolling(window=min(5, len(history_df)), min_periods=1).mean() * 100
         
+        # Clear any previous figures
+        plt.clf()
+        plt.close('all')
+        
         fig, ax = plt.subplots(figsize=(6, 3.2), facecolor=bg_color)
         ax.set_facecolor(bg_color)
         
@@ -1788,7 +1793,9 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         legend.get_frame().set_edgecolor(spine_color)
         
         plt.tight_layout()
-        st.pyplot(fig, transparent=True)
+        # Use unique key based on data to prevent caching
+        chart_key = f"success_trend_{len(history_df)}_{hash(str(history_df['timestamp'].max()))}"
+        st.pyplot(fig, transparent=True, key=chart_key, use_container_width=True)
         plt.close(fig)
         st.caption("📊 Rolling average of positive feedback (last 5 sessions)")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1797,6 +1804,10 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     with chart_cols[1]:
         st.markdown('<div class="chart-frame"><h4>Feedback Distribution</h4>', unsafe_allow_html=True)
         feedback_counts = history_df["feedback_emoji"].value_counts()
+        
+        # Clear any previous figures
+        plt.clf()
+        
         fig, ax = plt.subplots(figsize=(4.5, 3.4), facecolor=bg_color)
         ax.set_facecolor(bg_color)
         
@@ -1841,7 +1852,9 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         
         ax.axis("equal")
         plt.tight_layout()
-        st.pyplot(fig, transparent=True)
+        # Use unique key based on feedback data
+        pie_key = f"feedback_pie_{len(history_df)}_{hash(str(feedback_counts.to_dict()))}"
+        st.pyplot(fig, transparent=True, key=pie_key, use_container_width=True)
         plt.close(fig)
         st.caption("🎯 Overall session satisfaction ratings")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1859,6 +1872,9 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     journey_counts = history_df['journey'].value_counts().head(6)
     
     if not journey_counts.empty:
+        # Clear any previous figures
+        plt.clf()
+        
         fig, ax = plt.subplots(figsize=(10, 4), facecolor=bg_color)
         ax.set_facecolor(bg_color)
         
@@ -1892,7 +1908,9 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         ax.grid(axis="x", linestyle="--", alpha=0.15, color=grid_color, linewidth=1)
         
         plt.tight_layout()
-        st.pyplot(fig, transparent=True)
+        # Use unique key based on journey data
+        journey_key = f"journeys_{len(journey_counts)}_{hash(str(journey_counts.to_dict()))}"
+        st.pyplot(fig, transparent=True, key=journey_key, use_container_width=True)
         plt.close(fig)
     else:
         st.info("Complete more sessions to see journey patterns")
@@ -1901,7 +1919,17 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     st.subheader("Recent Sessions")
     display_df = history_df.copy()
     display_df["timestamp"] = display_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M IST")
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.dataframe(
+        display_df, 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "timestamp": st.column_config.TextColumn(
+                "Timestamp",
+                width="medium",
+            ),
+        }
+    )
 
 
 def render_about(profile: Optional[Dict[str, Any]]) -> None:
