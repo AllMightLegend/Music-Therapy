@@ -1692,6 +1692,8 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
 
     history_df = history_df.copy()
     history_df["timestamp"] = pd.to_datetime(history_df["timestamp"])
+    # Convert to IST (Indian Standard Time - UTC+5:30)
+    history_df["timestamp"] = history_df["timestamp"].dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata')
     history_df.sort_values("timestamp", inplace=True)
 
     total_sessions = len(history_df)
@@ -1898,7 +1900,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
 
     st.subheader("Recent Sessions")
     display_df = history_df.copy()
-    display_df["timestamp"] = display_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
+    display_df["timestamp"] = display_df["timestamp"].dt.strftime("%Y-%m-%d %H:%M IST")
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 
