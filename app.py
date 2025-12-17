@@ -133,32 +133,52 @@ THEMES: Dict[str, Dict[str, str]] = {
 
 
 def _text_color_css(theme_key: str) -> str:
+    # 1. Determine main text color
     color = "#000000" if theme_key == "light" else "var(--app-text)"
-    selectors = [
-        ".stMarkdown p",
-        ".stMarkdown div",
-        ".stMarkdown span",
-        ".stMarkdown li",
-        ".stTabs",
-        "label",
-        ".stRadio > label",
-        ".stCheckbox > label",
-        ".stTextInput label",
-        ".stSelectbox label",
-        ".stDateInput label",
-        ".stMetric",
-        ".stDataFrame div",
-        ".stCaption",
-        ".st-dataframe",
-        '.stSelectbox div[data-baseweb="select"] span',
-    ]
-    selector_block = ",\n    ".join(selectors)
-    return (
-        f"{selector_block} {{\n"
-        f"        color: {color};\n"
-        "    }\n"
-    )
+    
+    # 2. Stronger Button CSS for Light Mode (Targeting BOTH button types)
+    button_css = ""
+    if theme_key == "light":
+        button_css = """
+        /* Target Regular Buttons AND Form Submit Buttons */
+        div[data-testid="stButton"] button, 
+        div[data-testid="stFormSubmitButton"] button {
+            background-color: #000000 !important;
+            border: 1px solid #000000 !important;
+            color: #FFFFFF !important;
+        }
 
+        /* Force Text inside BOTH button types to be White */
+        div[data-testid="stButton"] button p,
+        div[data-testid="stFormSubmitButton"] button p {
+            color: #FFFFFF !important;
+        }
+
+        /* Hover Effects */
+        div[data-testid="stButton"] button:hover,
+        div[data-testid="stFormSubmitButton"] button:hover {
+            background-color: #333333 !important;
+            border-color: #333333 !important;
+            color: #FFFFFF !important;
+        }
+        """
+
+    # 3. General Text Rules
+    return f"""
+    .stRadio label p, 
+    .stRadio div[role='radiogroup'] p,
+    .stTextInput label p, 
+    .stSelectbox label p, 
+    .stCheckbox label p, 
+    .stTabs button p,
+    .stMarkdown p,
+    .stMarkdown li,
+    h1, h2, h3, h4, h5, h6 {{
+        color: {color} !important;
+    }}
+    
+    {button_css}
+    """
 
 def apply_theme(theme_key: str) -> None:
     theme = THEMES.get(theme_key, THEMES["dark"])
