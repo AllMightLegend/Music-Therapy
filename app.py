@@ -1757,10 +1757,6 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         history_df['is_positive'] = history_df["feedback_emoji"].str.lower().eq("happy").astype(int)
         history_df['rolling_success'] = history_df['is_positive'].rolling(window=min(5, len(history_df)), min_periods=1).mean() * 100
         
-        # Clear any previous figures
-        plt.clf()
-        plt.close('all')
-        
         # Use solid background instead of RGBA tuple for better compatibility
         fig_bg = 'white' if is_light_theme else '#0e1117'
         ax_bg = 'white' if is_light_theme else '#0e1117'
@@ -1809,9 +1805,6 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     with chart_cols[1]:
         st.markdown('<div class="chart-frame"><h4>Feedback Distribution</h4>', unsafe_allow_html=True)
         feedback_counts = history_df["feedback_emoji"].value_counts()
-        
-        # Clear any previous figures
-        plt.clf()
         
         # Use solid background
         fig_bg = 'white' if is_light_theme else '#0e1117'
@@ -1879,9 +1872,6 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     journey_counts = history_df['journey'].value_counts().head(6)
     
     if not journey_counts.empty:
-        # Clear any previous figures
-        plt.clf()
-        
         # Use solid background
         fig_bg = 'white' if is_light_theme else '#0e1117'
         ax_bg = 'white' if is_light_theme else '#0e1117'
