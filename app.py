@@ -1709,7 +1709,16 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
     history_df = history_df.copy()
     history_df["timestamp"] = pd.to_datetime(history_df["timestamp"])
     # Convert to IST (Indian Standard Time - UTC+5:30)
-    history_df["timestamp"] = history_df["timestamp"].dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata')
+    try:
+        # Try to localize to UTC and convert to Asia/Kolkata
+        if history_df["timestamp"].dt.tz is None:
+            history_df["timestamp"] = history_df["timestamp"].dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata')
+        else:
+            history_df["timestamp"] = history_df["timestamp"].dt.tz_convert('Asia/Kolkata')
+    except Exception:
+        # Fallback: manually add 5:30 hours if timezone conversion fails
+        import datetime
+        history_df["timestamp"] = history_df["timestamp"] + pd.Timedelta(hours=5, minutes=30)
     history_df.sort_values("timestamp", inplace=True)
 
     total_sessions = len(history_df)
