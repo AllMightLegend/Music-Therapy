@@ -101,18 +101,22 @@ def normalize_emotion(value: Optional[str]) -> Optional[str]:
 THEMES: Dict[str, Dict[str, str]] = {
     "light": {
         "label": "Light",
-        "primary": "#3A86FF",
-        "primary_accent": "#2651B5",
-        "background": "linear-gradient(135deg, #f7f8ff 0%, #eef5ff 100%)",
-        "surface": "rgba(255, 255, 255, 0.94)",
-        "surface_alt": "rgba(247, 249, 255, 0.95)",
-        "text": "#1F2933",
-        "muted": "#4A5568",
-        "border": "rgba(58, 134, 255, 0.14)",
-        "shadow": "0 18px 40px rgba(58, 134, 255, 0.08)",
-        "input_bg": "rgba(255, 255, 255, 0.98)",
-        "input_border": "rgba(58, 134, 255, 0.18)",
-        "input_text": "#1F2933",
+        "primary": "#6366f1",  # Modern indigo - more sophisticated than pure blue
+        "primary_accent": "#4f46e5",  # Deeper indigo for hover states
+        "background": "linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%)",  # Cleaner white-to-slate gradient
+        "surface": "rgba(255, 255, 255, 0.98)",  # More opaque for better readability
+        "surface_alt": "rgba(248, 250, 252, 0.98)",  # Subtle off-white
+        "text": "#0f172a",  # Slate-900 for strong contrast
+        "muted": "#64748b",  # Slate-500 for secondary text
+        "border": "rgba(203, 213, 225, 0.6)",  # Slate-300 with transparency
+        "shadow": "0 20px 50px rgba(15, 23, 42, 0.08), 0 8px 16px rgba(15, 23, 42, 0.04)",  # Layered shadows for depth
+        "input_bg": "rgba(255, 255, 255, 1.0)",  # Pure white inputs
+        "input_border": "rgba(203, 213, 225, 0.8)",  # Visible but not harsh
+        "input_text": "#0f172a",
+        "success": "#10b981",  # Emerald-500 for positive feedback
+        "warning": "#f59e0b",  # Amber-500 for warnings
+        "error": "#ef4444",  # Red-500 for errors
+        "accent_gradient": "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",  # Indigo to purple
     },
     "dark": {
         "label": "Midnight",
@@ -134,32 +138,70 @@ THEMES: Dict[str, Dict[str, str]] = {
 
 def _text_color_css(theme_key: str) -> str:
     # 1. Determine main text color
-    color = "#000000" if theme_key == "light" else "var(--app-text)"
+    color = "var(--app-text)"
     
-    # 2. Stronger Button CSS for Light Mode (Targeting BOTH button types)
+    # 2. Enhanced Button CSS for Light Mode
     button_css = ""
     if theme_key == "light":
         button_css = """
-        /* Target Regular Buttons AND Form Submit Buttons */
+        /* Modern Button Styling for Light Mode */
         div[data-testid="stButton"] button, 
         div[data-testid="stFormSubmitButton"] button {
-            background-color: #000000 !important;
-            border: 1px solid #000000 !important;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+            border: none !important;
             color: #FFFFFF !important;
+            font-weight: 600 !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+            transition: all 0.3s ease !important;
         }
 
-        /* Force Text inside BOTH button types to be White */
+        /* Button Text */
         div[data-testid="stButton"] button p,
         div[data-testid="stFormSubmitButton"] button p {
             color: #FFFFFF !important;
+            font-weight: 600 !important;
         }
 
-        /* Hover Effects */
+        /* Hover Effects - Lift and glow */
         div[data-testid="stButton"] button:hover,
         div[data-testid="stFormSubmitButton"] button:hover {
-            background-color: #333333 !important;
-            border-color: #333333 !important;
-            color: #FFFFFF !important;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4) !important;
+            transform: translateY(-2px) !important;
+        }
+        
+        /* Active/Pressed State */
+        div[data-testid="stButton"] button:active,
+        div[data-testid="stFormSubmitButton"] button:active {
+            transform: translateY(0px) !important;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3) !important;
+        }
+        
+        /* Info/Success/Warning Boxes with subtle colors */
+        .stAlert {
+            border-radius: 12px !important;
+            border-left: 4px solid !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        
+        div[data-baseweb="notification"][data-testid="stNotificationContentInfo"] {
+            background-color: rgba(219, 234, 254, 0.8) !important;
+            border-left-color: #3b82f6 !important;
+        }
+        
+        div[data-baseweb="notification"][data-testid="stNotificationContentSuccess"] {
+            background-color: rgba(220, 252, 231, 0.8) !important;
+            border-left-color: #10b981 !important;
+        }
+        
+        div[data-baseweb="notification"][data-testid="stNotificationContentWarning"] {
+            background-color: rgba(254, 243, 199, 0.8) !important;
+            border-left-color: #f59e0b !important;
+        }
+        
+        div[data-baseweb="notification"][data-testid="stNotificationContentError"] {
+            background-color: rgba(254, 226, 226, 0.8) !important;
+            border-left-color: #ef4444 !important;
         }
         """
 
@@ -213,57 +255,80 @@ def apply_theme(theme_key: str) -> None:
     .block-container {{
         padding: 3rem 2.5rem 3.2rem 2.5rem;
         margin-top: 2rem;
-        border-radius: 1.4rem;
+        border-radius: 20px;
         background: var(--app-surface);
         box-shadow: var(--app-shadow);
-        backdrop-filter: blur(18px);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--app-border);
     }}
 
     h1, h2, h3, h4 {{
         color: var(--app-text);
         letter-spacing: -0.02em;
+        font-weight: 700;
+    }}
+    
+    h1 {{
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }}
+    
+    h2 {{
+        font-size: 2rem;
     }}
 
     .app-hero {{
-        padding: 1.8rem 2.4rem;
-        border-radius: 1.2rem;
+        padding: 2rem 2.5rem;
+        border-radius: 16px;
         background: var(--app-surface-alt);
         border: 1px solid var(--app-border);
-        box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+        box-shadow: var(--app-shadow);
         color: var(--app-text);
     }}
 
     .app-hero h1 {{
-        font-size: 2.3rem;
-        margin-bottom: 0.2rem;
+        font-size: 2.5rem;
+        margin-bottom: 0.3rem;
+        background: linear-gradient(135deg, var(--app-primary) 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }}
 
     .tagline {{
         color: var(--app-muted);
-        font-size: 1.05rem;
-        margin-bottom: 0.2rem;
+        font-size: 1.1rem;
+        margin-bottom: 0.3rem;
+        line-height: 1.6;
     }}
 
     .badge {{
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.2rem 0.8rem;
+        padding: 0.35rem 1rem;
         border-radius: 999px;
-        background: rgba(127, 219, 218, 0.16);
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
         color: var(--app-primary);
         font-size: 0.85rem;
         font-weight: 600;
+        border: 1px solid rgba(99, 102, 241, 0.2);
     }}
 
     .profile-shell {{
-        border-radius: 1.2rem;
-        padding: 1.6rem;
+        border-radius: 16px;
+        padding: 1.8rem;
         border: 1px solid var(--app-border);
         background: var(--app-surface-alt);
-        box-shadow: 0 16px 32px rgba(0,0,0,0.35);
+        box-shadow: var(--app-shadow);
         color: var(--app-text);
         margin-bottom: 1rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }}
+    
+    .profile-shell:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12), 0 12px 24px rgba(15, 23, 42, 0.06);
     }}
 
     .profile-shell .meta {{
@@ -274,63 +339,75 @@ def apply_theme(theme_key: str) -> None:
 
     .session-section {{
         background: var(--app-surface-alt);
-        border-radius: 1.25rem;
+        border-radius: 16px;
         border: 1px solid var(--app-border);
-        padding: 1.6rem 1.8rem;
-        box-shadow: 0 18px 36px rgba(0,0,0,0.35);
-        margin-top: 1.3rem;
+        padding: 1.8rem 2rem;
+        box-shadow: var(--app-shadow);
+        margin-top: 1.5rem;
     }}
 
     .insights-grid {{
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        gap: 1rem;
-        margin: 1rem 0 1.5rem 0;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.2rem;
+        margin: 1.2rem 0 1.8rem 0;
     }}
 
     .insight-card {{
         background: var(--app-surface-alt);
-        border-radius: 1.1rem;
+        border-radius: 14px;
         border: 1px solid var(--app-border);
-        padding: 1.1rem 1.2rem;
-        box-shadow: 0 16px 30px rgba(0,0,0,0.28);
+        padding: 1.3rem 1.4rem;
+        box-shadow: var(--app-shadow);
         color: var(--app-text);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }}
+    
+    .insight-card:hover {{
+        transform: translateY(-3px);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14), 0 12px 24px rgba(15, 23, 42, 0.07);
     }}
 
     .insight-card h4 {{
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
         color: var(--app-muted);
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
     }}
 
     .insight-card .value {{
-        font-size: 1.9rem;
-        font-weight: 700;
-        color: var(--app-primary);
+        font-size: 2.2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--app-primary) 0%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0.3rem 0;
     }}
 
     .insight-card .hint {{
         font-size: 0.85rem;
         color: var(--app-muted);
+        margin-top: 0.3rem;
     }}
 
     .chart-frame {{
         background: var(--app-surface-alt);
-        border-radius: 1.1rem;
+        border-radius: 14px;
         border: 1px solid var(--app-border);
-        padding: 1.2rem 1.3rem 1rem 1.3rem;
-        box-shadow: 0 18px 36px rgba(0,0,0,0.32);
-        margin-bottom: 1.2rem;
+        padding: 1.4rem 1.5rem 1.2rem 1.5rem;
+        box-shadow: var(--app-shadow);
+        margin-bottom: 1.4rem;
     }}
 
     .chart-frame h4 {{
-        margin-bottom: 0.45rem;
-        font-size: 0.96rem;
-        color: var(--app-muted);
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
+        margin-bottom: 0.6rem;
+        font-size: 1rem;
+        color: var(--app-text);
+        letter-spacing: 0.02em;
+        font-weight: 700;
     }}
 
     .insights-grid .hint {{
@@ -338,45 +415,99 @@ def apply_theme(theme_key: str) -> None:
     }}
 
     .stDataFrame {{
-        border-radius: 1rem;
+        border-radius: 12px;
         overflow: hidden;
         border: 1px solid var(--app-border);
         background: var(--app-surface-alt);
+        box-shadow: var(--app-shadow);
     }}
 
     div[data-testid="stButton"] button {{
-        border-radius: 999px;
-        padding: 0.5rem 1.7rem;
-        border: 1px solid transparent;
-        background: var(--app-primary);
+        border-radius: 12px;
+        padding: 0.65rem 1.8rem;
+        border: none;
+        background: linear-gradient(135deg, var(--app-primary) 0%, #8b5cf6 100%);
         color: #ffffff;
         font-weight: 600;
         letter-spacing: 0.01em;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }}
 
     div[data-testid="stButton"] button:hover {{
-        background: var(--app-primary-accent);
-        transform: translateY(-1px);
-        box-shadow: 0 12px 25px rgba(127,219,218,0.25);
+        background: linear-gradient(135deg, var(--app-primary-accent) 0%, #7c3aed 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
     }}
 
     {text_css}
 
     label, .stRadio > label, .stCheckbox > label, .stTextInput label, .stSelectbox label, .stDateInput label {{
-        color: var(--app-muted);
+        color: var(--app-text);
         font-weight: 600;
+        font-size: 0.95rem;
     }}
 
     .stSelectbox div[data-baseweb="select"] > div {{
         background: var(--app-input-bg);
-        border-radius: 0.9rem;
-        border: 1px solid var(--app-input-border);
+        border-radius: 10px;
+        border: 2px solid var(--app-input-border);
         color: var(--app-input-text);
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    }}
+    
+    .stSelectbox div[data-baseweb="select"] > div:hover {{
+        border-color: var(--app-primary);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+    }}
+    
+    .stSelectbox div[data-baseweb="select"] > div:focus-within {{
+        border-color: var(--app-primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
     }}
 
     .stSelectbox div[data-baseweb="select"] span {{
         color: var(--app-input-text);
+    }}
+    
+    /* Text Input Styling */
+    .stTextInput input {{
+        background: var(--app-input-bg);
+        border-radius: 10px;
+        border: 2px solid var(--app-input-border);
+        color: var(--app-input-text);
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        padding: 0.65rem 1rem;
+    }}
+    
+    .stTextInput input:hover {{
+        border-color: var(--app-primary);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+    }}
+    
+    .stTextInput input:focus {{
+        border-color: var(--app-primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        outline: none;
+    }}
+    
+    /* Radio Buttons */
+    .stRadio div[role="radiogroup"] {{
+        gap: 0.8rem;
+    }}
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {{
+        background: var(--app-surface);
+        border-right: 1px solid var(--app-border);
+    }}
+    
+    section[data-testid="stSidebar"] .block-container {{
+        background: transparent;
+        box-shadow: none;
+        border: none;
     }}
 
     .stDateInput input, .stTextInput input, .stPasswordInput input, .stTextArea textarea {{
