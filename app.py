@@ -1160,12 +1160,14 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                     st.session_state["_last_snapshot_key"] = None
                     st.session_state["_emotion_history"] = []
                     st.session_state["detected_mood"] = None
-                    # Clear the queue as well
-                    while not emotion_queue.empty():
-                        try:
-                            emotion_queue.get_nowait()
-                        except:
-                            break
+                    # Clear the queue as well (only if it exists)
+                    emotion_queue = st.session_state.get("_emotion_queue")
+                    if emotion_queue is not None and isinstance(emotion_queue, Queue):
+                        while not emotion_queue.empty():
+                            try:
+                                emotion_queue.get_nowait()
+                            except:
+                                break
         else:
             st.info("📊 No emotion detected yet. Capture a snapshot to get started!")
 
