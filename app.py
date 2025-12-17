@@ -1532,6 +1532,21 @@ def render_new_session(profile: Dict[str, Any]) -> None:
             regen_count = st.session_state.get("regeneration_count", 0)
             button_suffix = f"_step{current_step_for_key}_regen{regen_count}"
             
+            # Clear Session button
+            if st.button("🔄 Clear Session & Start New", key=f"clear_session{button_suffix}", type="secondary", use_container_width=True):
+                # Reset all session state
+                st.session_state["detected_mood"] = None
+                st.session_state["mode"] = None
+                st.session_state["last_detected_emotion"] = None
+                st.session_state.pop("current_playlist", None)
+                st.session_state.pop("current_from", None)
+                st.session_state.pop("current_to", None)
+                st.session_state.pop("emotion_path", None)
+                st.session_state["current_transition_step"] = 0
+                st.session_state["regeneration_count"] = 0
+                st.success("✅ Session cleared! Starting fresh...")
+                st.rerun()
+            
             c1, c2, c3 = st.columns(3)
             feedback = None
             if c1.button("😞 Not Effective", key=f"feedback_sad{button_suffix}", use_container_width=True):
