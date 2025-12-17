@@ -1820,13 +1820,15 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
             # Donut hole with gradient effect
             if is_light_theme:
                 centre_circle = plt.Circle((0, 0), 0.65, fc="#f8fafc", ec="#e2e8f0", linewidth=2)
+                percentage_color = "#0f172a"  # Dark text for light theme
             else:
                 centre_circle = plt.Circle((0, 0), 0.65, fc="#1e293b", ec="#334155", linewidth=2)
+                percentage_color = "white"  # White text for dark theme
             fig.gca().add_artist(centre_circle)
             
-            # Style percentage text
+            # Style percentage text - theme adaptive
             for autotext in autotexts:
-                autotext.set_color("white")
+                autotext.set_color(percentage_color)
                 autotext.set_fontweight(700)
                 autotext.set_fontsize(10)
             
