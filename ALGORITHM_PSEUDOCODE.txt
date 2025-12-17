@@ -1,610 +1,113 @@
 ================================================================================
-MUSIC THERAPY STUDIO - MUSIC RECOMMENDATION ALGORITHM
+MUSIC THERAPY - MUSIC RECOMMENDATION ALGORITHM
 ================================================================================
-K-Nearest Neighbors + Cubic Easing + Weighted Selection
-Version: 2.0 | December 2025
-
-================================================================================
-OVERVIEW
-================================================================================
-
-The music recommendation algorithm uses:
-1. VAD Emotional Model (Valence-Arousal-Dominance)
-2. K-Nearest Neighbors (KNN) for similarity matching
-3. Cubic Easing for smooth emotional transitions
-4. Weighted Random Selection for playlist diversity
-
-Input: Start emotion, Target emotion, Number of steps
-Output: Playlist of 5 songs that gradually transition emotions
+KNN + Cubic Easing + Weighted Selection
 
 ================================================================================
-MAIN ALGORITHM: PLAYLIST GENERATION
+CORE ALGORITHM
 ================================================================================
 
-ALGORITHM: generate_playlist(start_emotion, target_emotion, num_steps)
+FUNCTION: generate_playlist(start_emotion, target_emotion, num_steps=5)
 
-INPUT:
-    start_emotion: String
-    target_emotion: String
-    num_steps: Integer (default 5)
-    random_state: Integer (for reproducibility)
-
-OUTPUT:
-    DataFrame with 5 songs
+INPUT: Start emotion, Target emotion, Number of songs
+OUTPUT: 5-song playlist (DataFrame)
 
 STEPS:
 
-1. Initialize:
-       np.random.seed(random_state)
-       selected_songs = []
-       used_song_ids = set()
+1. INITIALIZE
+   - Set random seed
+   - selected_songs = []
+   - used_song_ids = set()
 
-2. Find emotion path:
-       emotion_path = find_emotion_path(start_emotion, target_emotion)
+2. FIND EMOTION PATH
+   - emotion_path = BFS(start → target)
+   - Example: ["sad", "melancholic", "neutral", "content", "calm"]
 
-3. FOR each transition IN emotion_path:
-       current = emotion_path[i]
-       next = emotion_path[i + 1]
-       
-       # Get VAD coordinates
-       v_start, a_start = get_va_coordinates(current)
-       v_end, a_end = get_va_coordinates(next)
-       
-       # Standardize features
-       start_features = standardize([v_start, a_start, 0.0])
-       end_features = standardize([v_end, a_end, 0.0])
-       
-       # Generate transition points with cubic easing
-       transition_points = []
-       songs_needed = num_steps / (len(emotion_path) - 1)
-       
-       FOR i FROM 0 TO songs_needed - 1:
-           t = i / (songs_needed - 1)
-           
-           # Cubic easing
-           IF t < 0.5:
-               eased_t = 4 * t³
-           ELSE:
-               eased_t = 1 - ((-2*t + 2)³ / 2)
-           
-           # Interpolate
-           point = start_features + (end_features - start_features) * eased_t
-           transition_points.append(point)
-       
-       # Find songs for each point
-       FOR target_point IN transition_points:
-           song = select_best_song(target_point, used_song_ids)
-           selected_songs.append(song)
-           used_song_ids.add(song.spotify_id)
+3. FOR EACH TRANSITION (current → next):
+   
+   a. Get VAD coordinates
+      v_start, a_start = get_coordinates(current)
+      v_end, a_end = get_coordinates(next)
+   
+   b. Standardize features
+      start_features = scaler.transform([v_start, a_start, 0.0])
+      end_features = scaler.transform([v_end, a_end, 0.0])
+   
+   c. Generate transition points (cubic easing)
+      FOR each step:
+          t = step / (total_steps - 1)
+          
+          IF t < 0.5:
+              eased_t = 4t³
+          ELSE:
+              eased_t = 1 - [(-2t + 2)³ / 2]
+          
+          point = start + (end - start) × eased_t
+   
+   d. Select songs using KNN
+      FOR each point:
+          - Find 50 nearest neighbors
+          - Score: -distance + 0.3 (diversity bonus)
+          - Weighted random selection from top candidates
+          - Add to playlist, mark as used
 
-4. RETURN DataFrame(selected_songs)
-
-
-FUNCTION select_best_song(target_point, used_ids):
-    # KNN: Find 50 nearest neighbors
-    distances, indices = knn_model.kneighbors([target_point], n_neighbors=50)
-    
-    # Score all candidates
-    candidates = []
-    scores = []
-    
-    FOR idx IN indices[0]:
-        song = music_df.iloc[idx]
-        song_id = song["spotify_id"]
-        
-        IF song_id IN used_ids:
-            CONTINUE
-        
-        # Compute score
-        song_features = feature_matrix[idx]
-        distance = euclidean_distance(song_features, target_point)
-        diversity_bonus = 0.3 IF len(used_ids) > 0 ELSE 0.0
-        score = -distance + diversity_bonus
-        
-        candidates.append((song, score))
-        scores.append(score)
-    
-    # Weighted random selection
-    scores = array(scores)
-    scores = scores - min(scores) + 0.1
-    weights = exp(scores)
-    probabilities = weights / sum(weights)
-    
-    selected_idx = random_choice(len(candidates), p=probabilities)
-    RETURN candidates[selected_idx][0]
+4. RETURN playlist
 
 
 ================================================================================
-STEP 1: KNN MODEL INITIALIZATION
+HELPER FUNCTIONS
 ================================================================================
 
-ALGORITHM: initialize_knn_model(music_df)
+KNN MODEL INITIALIZATION:
+-------------------------
+1. Extract features: [valence, arousal, dominance]
+2. Standardize: z = (x - μ) / σ
+3. Build KNN: NearestNeighbors(n_neighbors=50, algorithm='ball_tree')
 
-PURPOSE: Build machine learning model from music dataset
+VAD COORDINATES:
+----------------
+happy:  (0.8, 0.8)  | sad:    (-0.7, -0.6) | angry: (-0.6, 0.7)
+calm:   (0.7, -0.7) | anxious: (-0.3, 0.6) | neutral: (0.0, 0.0)
 
-INPUT: 
-    music_df: DataFrame with 22,005 songs
-    Columns: track, artist, valence, arousal, spotify_id, dominance_tags
-
-OUTPUT:
-    knn_model: Trained K-Nearest Neighbors model
-    scaler: StandardScaler for feature normalization
-    feature_matrix: Standardized feature vectors for all songs
-
-PROCESS:
-
-1. Extract features from dataset:
-       features = []
-       
-       # Valence: Negative (-1) to Positive (+1)
-       features.append(music_df["valence"].values)
-       
-       # Arousal: Low energy (-1) to High energy (+1)
-       features.append(music_df["arousal"].values)
-       
-       # Dominance (optional): Weak (-1) to Strong (+1)
-       IF "dominance_tags" IN music_df.columns:
-           dominance = normalize(music_df["dominance_tags"])
-           features.append(dominance.values)
-
-2. Create feature matrix (N × D):
-       feature_matrix = stack_columns(features)
-       # N = 22,005 songs
-       # D = 2 dimensions (V, A) or 3 dimensions (V, A, D)
-
-3. Standardize features (Z-score normalization):
-       scaler = StandardScaler()
-       feature_matrix = scaler.fit_transform(feature_matrix)
-       # Result: Each feature has mean=0, std=1
-
-4. Build KNN model:
-       knn_model = NearestNeighbors(
-           n_neighbors=50,        # Consider 50 candidates per query
-           algorithm='ball_tree', # Efficient for high dimensions: O(log N)
-           metric='euclidean'     # Euclidean distance in VAD space
-       )
-       knn_model.fit(feature_matrix)
-
-5. RETURN knn_model, scaler, feature_matrix
+WEIGHTED SELECTION:
+-------------------
+1. Shift scores: s' = s - min(s) + 0.1
+2. Exponential weights: w = e^(s')
+3. Probabilities: P = w / sum(w)
+4. Random selection based on P
 
 
 ================================================================================
-STEP 2: EMOTION TO VAD CONVERSION
+EXAMPLE: sad → calm
 ================================================================================
 
-FUNCTION: get_va_coordinates(emotion)
+Path: ["sad", "melancholic", "neutral", "content", "calm"]
 
-PURPOSE: Convert emotion name to numerical coordinates
+Transition 1 (sad → melancholic):
+- Start: (-0.7, -0.6), End: (-0.5, -0.4)
+- Generate point with cubic easing
+- KNN finds 50 songs near target
+- Select Song A (valence: -0.65, arousal: -0.55)
 
-INPUT:
-    emotion: String (e.g., "sad", "happy", "calm")
-
-OUTPUT:
-    (valence, arousal): Tuple of floats
-
-EMOTION_COORDINATES:
-    happy:      (0.8, 0.8)   # High positive, high energy
-    sad:        (-0.7, -0.6) # Negative, low energy
-    angry:      (-0.6, 0.7)  # Negative, high energy
-    fearful:    (-0.4, 0.8)  # Slightly negative, very high arousal
-    surprised:  (0.1, 0.9)   # Neutral-positive, very high arousal
-    calm:       (0.7, -0.7)  # Positive, very low arousal
-    anxious:    (-0.3, 0.6)  # Slightly negative, high arousal
-    focused:    (0.3, 0.2)   # Slightly positive, slightly active
-    energized:  (0.6, 0.8)   # Positive, high energy
-    relaxed:    (0.5, -0.6)  # Positive, low energy
-    loving:     (0.7, 0.3)   # Positive, moderate arousal
-    neutral:    (0.0, 0.0)   # Center point
-    
-    # Intermediate emotions for smooth transitions
-    melancholic: (-0.5, -0.4)
-    somber:      (-0.35, -0.2)
-    irritated:   (-0.45, 0.5)
-    tense:       (-0.2, 0.4)
-    uneasy:      (-0.15, 0.3)
-    content:     (0.4, -0.3)
-    serene:      (0.6, -0.5)
-    peaceful:    (0.65, -0.6)
-    hopeful:     (0.3, 0.1)
-    cheerful:    (0.6, 0.5)
-
-IMPLEMENTATION:
-    key = emotion.strip().lower()
-    IF key IN EMOTION_COORDINATES:
-        RETURN EMOTION_COORDINATES[key]
-    ELSE:
-        RETURN (0.0, 0.0)  # Default to neutral
+Transition 2-5: Similar process
+Result: 5 songs gradually transition from sad → calm
 
 
 ================================================================================
-STEP 3: CUBIC EASING INTERPOLATION
+COMPLEXITY
 ================================================================================
 
-FUNCTION: cubic_easing(t)
-
-PURPOSE: Non-linear interpolation for smooth transitions
-
-INPUT:
-    t: Float in range [0, 1] (progress ratio)
-
-OUTPUT:
-    eased_t: Float in range [0, 1] (eased progress)
-
-FORMULA:
-    IF t < 0.5:
-        eased_t = 4 × t³
-    ELSE:
-        eased_t = 1 - [(-2×t + 2)³ / 2]
-
-EFFECT:
-    - Slow start (ease-in)
-    - Fast middle
-    - Slow end (ease-out)
-
-EXAMPLE PROGRESSION:
-    t = 0.00 → eased = 0.000 (start slowly)
-    t = 0.25 → eased = 0.063 (accelerating)
-    t = 0.50 → eased = 0.500 (midpoint at full speed)
-    t = 0.75 → eased = 0.938 (decelerating)
-    t = 1.00 → eased = 1.000 (end slowly)
-
-USAGE:
-    interpolated_value = start + (end - start) × eased_t
+Time: O(log N) per song (ball-tree KNN, N=22,005 songs)
+Space: O(N) for feature matrix
 
 
 ================================================================================
-STEP 4: SONG SCORING
+KEY FEATURES
 ================================================================================
 
-FUNCTION: compute_song_score(song_features, target_features, used_ids, song_id)
+- Cubic easing: 45% smoother than linear
+- Weighted selection: ~10% overlap between regenerations
+- KNN efficiency: O(log N) query time
+- Diversity bonus: Prevents repetitive songs
 
-PURPOSE: Calculate how well a song matches the target emotional state
-
-INPUT:
-    song_features: Numpy array [v, a, d] (standardized)
-    target_features: Numpy array [v, a, d] (standardized)
-    used_ids: Set of already selected song IDs
-    song_id: String (Spotify ID of candidate song)
-
-OUTPUT:
-    score: Float (higher is better)
-
-CALCULATION:
-
-1. Compute Euclidean distance:
-       distance = ||song_features - target_features||₂
-       distance = sqrt(sum((song_features - target_features)²))
-
-2. Base score (negative distance, closer is better):
-       base_score = -distance
-
-3. Diversity bonus (encourage variety):
-       diversity_bonus = 0.3 IF len(used_ids) > 0 ELSE 0.0
-
-4. Total score:
-       total_score = base_score + diversity_bonus
-
-5. RETURN total_score
-
-INTERPRETATION:
-    - Higher score = better match
-    - Negative values are normal (distance penalty)
-    - Diversity bonus prevents repetitive selections
-
-
-================================================================================
-STEP 5: WEIGHTED RANDOM SELECTION
-================================================================================
-
-FUNCTION: weighted_random_selection(candidates, scores)
-
-PURPOSE: Select song probabilistically based on scores (not always top-1)
-
-INPUT:
-    candidates: List of (song, score) tuples
-    scores: Array of scores
-
-OUTPUT:
-    selected_song: One song from candidates
-
-PROCESS:
-
-1. Shift scores to positive range:
-       min_score = min(scores)
-       shifted_scores = scores - min_score + 0.1
-
-2. Apply exponential weighting:
-       weights = exp(shifted_scores)
-       # Higher scores get exponentially more weight
-
-3. Normalize to probabilities:
-       probabilities = weights / sum(weights)
-       # Sum of probabilities = 1.0
-
-4. Random selection based on probabilities:
-       selected_idx = random_choice(len(candidates), p=probabilities)
-       selected_song = candidates[selected_idx][0]
-
-5. RETURN selected_song
-
-EXAMPLE:
-    Candidates: [A, B, C, D]
-    Scores:     [-1.2, -0.8, -1.5, -0.5]
-    Shifted:    [0.1, 0.5, 0.0, 0.8]
-    Weights:    [1.105, 1.649, 1.000, 2.226]
-    Probs:      [18.5%, 27.6%, 16.7%, 37.2%]
-    Result:     D has highest probability (37.2%) but not guaranteed
-
-
-================================================================================
-MAIN ALGORITHM: GENERATE_PLAYLIST
-================================================================================
-
-ALGORITHM: generate_playlist(start_emotion, target_emotion, num_steps, random_state)
-
-PURPOSE: Generate therapeutic music playlist for emotional transition
-
-INPUT:
-    start_emotion: String (e.g., "sad")
-    target_emotion: String (e.g., "calm")
-    num_steps: Integer (default 5, number of songs)
-    random_state: Integer (seed for reproducibility)
-
-OUTPUT:
-    playlist_df: DataFrame with 5 songs
-    Columns: track, artist, spotify_id, valence, arousal
-
-DETAILED PROCESS:
-
-1. INITIALIZE:
-       np.random.seed(random_state)
-       selected_songs = []
-       used_song_ids = set()
-       recommender = AdvancedMusicRecommender(music_engine)
-
-2. FIND EMOTION PATH:
-       emotion_path = find_emotion_path(start_emotion, target_emotion)
-       # Example: ["sad", "melancholic", "somber", "neutral", "content", "calm"]
-       # Ensures minimum 2 transitions (3+ emotions)
-
-3. FOR EACH TRANSITION in emotion_path:
-       
-       FOR transition_index FROM 0 TO len(emotion_path) - 2:
-           
-           current_emotion = emotion_path[transition_index]
-           next_emotion = emotion_path[transition_index + 1]
-           
-           # Example: Transition 1: sad → melancholic
-           
-           # 3a. Get VAD coordinates
-           v_start, a_start = get_va_coordinates(current_emotion)
-           v_end, a_end = get_va_coordinates(next_emotion)
-           
-           # Example: sad (-0.7, -0.6) → melancholic (-0.5, -0.4)
-           
-           # 3b. Calculate songs needed for this transition
-           songs_for_transition = num_steps / (len(emotion_path) - 1)
-           
-           IF transition_index == len(emotion_path) - 2:
-               # Last transition gets remaining songs
-               songs_for_transition = num_steps - len(selected_songs)
-           
-           # Example: 5 songs / 5 transitions = 1 song per transition
-           
-           # 3c. Create feature vectors [v, a, d]
-           start_features = [v_start, a_start, 0.0]
-           end_features = [v_end, a_end, 0.0]
-           
-           # 3d. Standardize using trained scaler
-           start_features = scaler.transform([start_features])[0]
-           end_features = scaler.transform([end_features])[0]
-           
-           # 3e. Generate smooth transition points using cubic easing
-           transition_points = []
-           
-           FOR step_index FROM 0 TO songs_for_transition - 1:
-               
-               # Calculate progress ratio
-               t = step_index / (songs_for_transition - 1)
-               
-               # Apply cubic easing
-               IF t < 0.5:
-                   eased_t = 4 × t³
-               ELSE:
-                   eased_t = 1 - ((-2×t + 2)³ / 2)
-               
-               # Interpolate features
-               interpolated = start_features + (end_features - start_features) × eased_t
-               transition_points.append(interpolated)
-           
-           # 3f. Find best songs for each transition point
-           FOR target_point IN transition_points:
-               
-               # KNN: Find 50 nearest neighbors
-               distances, indices = knn_model.kneighbors(
-                   [target_point], 
-                   n_neighbors=50
-               )
-               
-               # Score all 50 candidates
-               candidates = []
-               scores = []
-               
-               FOR idx IN indices[0]:
-                   song = music_df.iloc[idx]
-                   song_id = song["spotify_id"]
-                   
-                   # Skip if already selected
-                   IF song_id IN used_song_ids:
-                       CONTINUE
-                   
-                   # Compute score
-                   song_features = feature_matrix[idx]
-                   score = compute_song_score(
-                       song_features, 
-                       target_point, 
-                       used_song_ids, 
-                       song_id
-                   )
-                   
-                   candidates.append((song, score))
-                   scores.append(score)
-               
-               # Weighted random selection from candidates
-               IF len(candidates) > 0:
-                   selected_song = weighted_random_selection(candidates, scores)
-                   selected_songs.append(selected_song)
-                   used_song_ids.add(selected_song["spotify_id"])
-               
-               # Stop if we have enough songs
-               IF len(selected_songs) >= num_steps:
-                   BREAK
-           
-           # Stop if we have enough songs
-           IF len(selected_songs) >= num_steps:
-               BREAK
-
-4. CREATE RESULT DATAFRAME:
-       playlist_df = DataFrame(selected_songs)
-       keep_columns = ["track", "artist", "spotify_id", "valence", "arousal"]
-       playlist_df = playlist_df[keep_columns]
-
-5. RETURN playlist_df
-
-
-================================================================================
-EXAMPLE EXECUTION TRACE
-================================================================================
-
-INPUT:
-    start_emotion = "sad"
-    target_emotion = "calm"
-    num_steps = 5
-    random_state = 42
-
-STEP-BY-STEP EXECUTION:
-
-1. Initialize:
-       Set random seed to 42
-       selected_songs = []
-       used_song_ids = set()
-
-2. Find path:
-       emotion_path = ["sad", "melancholic", "somber", "neutral", "content", "calm"]
-       Total transitions = 5
-
-3. Process Transition 1 (sad → melancholic):
-       v_start, a_start = (-0.7, -0.6)
-       v_end, a_end = (-0.5, -0.4)
-       songs_needed = 5 / 5 = 1 song
-       
-       Generate 1 transition point:
-       t = 0.0 → eased = 0.0
-       point = [-0.7, -0.6, 0.0] (standardized)
-       
-       KNN finds 50 nearest songs
-       Score each candidate
-       Weighted selection picks Song A (score: -0.8, prob: 25%)
-       Add to selected_songs, add ID to used_song_ids
-
-4. Process Transition 2 (melancholic → somber):
-       Similar process, selects Song B
-
-5. Process Transition 3 (somber → neutral):
-       Selects Song C
-
-6. Process Transition 4 (neutral → content):
-       Selects Song D
-
-7. Process Transition 5 (content → calm):
-       Selects Song E
-
-8. Create DataFrame:
-       playlist_df:
-       | track          | artist       | spotify_id | valence | arousal |
-       |----------------|--------------|------------|---------|---------|
-       | Soft Rain      | Artist A     | abc123     | -0.65   | -0.55   |
-       | Gentle Waves   | Artist B     | def456     | -0.48   | -0.38   |
-       | Morning Calm   | Artist C     | ghi789     | -0.12   | -0.05   |
-       | Peaceful Day   | Artist D     | jkl012     | 0.38    | -0.28   |
-       | Serene Garden  | Artist E     | mno345     | 0.68    | -0.68   |
-
-9. Return playlist
-
-
-================================================================================
-ALGORITHM COMPLEXITY ANALYSIS
-================================================================================
-
-TIME COMPLEXITY:
-
-1. KNN Model Initialization: O(N log N)
-   - N = 22,005 songs
-   - Ball-tree construction
-
-2. Single KNN Query: O(log N)
-   - Ball-tree search
-
-3. Playlist Generation:
-   - Path finding: O(1) (fixed emotion graph)
-   - Transitions: T = len(emotion_path) - 1 ≈ 5
-   - Songs per transition: S = num_steps / T ≈ 1
-   - KNN queries: T × S = 5
-   - Candidates per query: K = 50
-   - Total: O(T × S × (log N + K))
-   - Approximate: O(5 × 1 × (15 + 50)) = O(325)
-
-TOTAL: O(log N) per song selection, very efficient
-
-
-SPACE COMPLEXITY:
-
-1. Feature Matrix: O(N × D)
-   - N = 22,005 songs
-   - D = 2 or 3 dimensions
-   - Memory: ~440 KB (negligible)
-
-2. KNN Model: O(N)
-   - Ball-tree structure
-
-3. Selected Songs: O(num_steps)
-   - 5 songs × metadata
-
-TOTAL: O(N) dominated by music dataset
-
-
-================================================================================
-KEY ADVANTAGES
-================================================================================
-
-1. SMOOTH TRANSITIONS
-   - Cubic easing prevents jarring emotional jumps
-   - 45% smoother than linear interpolation (empirically measured)
-
-2. DIVERSITY
-   - Weighted random selection ensures variety
-   - ~10% overlap between regenerations
-   - 50 candidates per point (not just top-1)
-
-3. EFFICIENCY
-   - O(log N) query time with ball-tree
-   - Can handle millions of songs
-
-4. THERAPEUTIC EFFECTIVENESS
-   - Multi-step paths respect ISO principle
-   - Minimum 2 transitions enforced
-   - Gradual progression validated by therapists
-
-5. REPRODUCIBILITY
-   - Random seed ensures consistent results
-   - Different seed for regenerations
-
-6. SCALABILITY
-   - Feature standardization handles varying music datasets
-   - KNN adapts to any number of songs
-   - Algorithm generalizes to new emotions
-
-
-================================================================================
-END OF MUSIC RECOMMENDATION ALGORITHM
 ================================================================================

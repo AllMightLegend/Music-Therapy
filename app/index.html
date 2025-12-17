@@ -14,15 +14,16 @@
             --button-text: #000000;
         }
 
-        body {
+        html, body {
             margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             height: 100vh; /* Full viewport height */
+            width: 100vw;
             display: flex; /* Creates the Split Screen */
-            overflow: hidden; /* Prevents scroll on desktop if content fits */
+            overflow: hidden; /* CRITICAL: Stops the main window from scrolling */
         }
 
         /* 2. LAYOUT (Split Screen) */
@@ -33,19 +34,28 @@
             flex-direction: column;
             justify-content: space-between; /* Pushes content to middle/bottom */
             box-sizing: border-box;
-            overflow-y: auto; /* Allows scrolling on text side if needed */
+            overflow-y: auto; /* Allows scrolling inside this pane only */
+            
+            /* HIDE SCROLLBARS (The Magic Fix) */
+            -ms-overflow-style: none;  /* Internet Explorer 10+ */
+            scrollbar-width: none;  /* Firefox */
+        }
+        
+        /* HIDE SCROLLBARS FOR CHROME/SAFARI */
+        .left-pane::-webkit-scrollbar { 
+            display: none; 
         }
 
         .right-pane {
-    width: 50%;
-    /* This adds a gradient that fades from Black (left) to Transparent (right) */
-    background-image: linear-gradient(to right, #111111 0%, transparent 20%), url('hero.jpg');
-    background-size: cover;
-    background-position: center top;
-    background-repeat: no-repeat;
-    /* Optional: This blends the edge even more smoothly */
-    box-shadow: inset 50px 0 50px -20px #111111;
-}
+            width: 50%;
+            /* This adds a gradient that fades from Black (left) to Transparent (right) */
+            background-image: linear-gradient(to right, #111111 0%, transparent 20%), url('hero.jpg');
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            /* Optional: This blends the edge even more smoothly */
+            box-shadow: inset 50px 0 50px -20px #111111;
+        }
 
         /* 3. HEADER (Logo + Top Right Login) */
         .navbar {
@@ -55,11 +65,13 @@
             margin-bottom: 4rem;
         }
 
-        .logo {
-            font-weight: 700;
-            font-size: 1.2rem;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+        .logo-img {
+            height: 60px;          /* Sets the height */
+            width: 60px;           /* Sets the width */
+            object-fit: cover;     /* Prevents stretching */
+            border-radius: 50%;    /* Makes it a perfect circle */
+            border: 2px solid rgba(255, 255, 255, 0.2); /* Adds a subtle glow border */
+            cursor: pointer;
         }
 
         .login-btn-small {
@@ -92,7 +104,7 @@
 
         .subtitle {
             font-size: 1.25rem;
-            color: #ff9f9f; /* Slight pinkish tint for emphasis, or make white */
+            color: #ff9f9f; /* Slight pinkish tint for emphasis */
             margin-bottom: 1.5rem;
             font-weight: 500;
             display: block;
@@ -155,6 +167,7 @@
                 width: 100%;
                 padding: 2rem;
                 order: 2; /* Put text below image */
+                overflow: visible;
             }
 
             .right-pane {
@@ -165,7 +178,6 @@
             
             h1 { font-size: 2.5rem; }
             
-            /* Hide the top navbar on mobile to save space, or adjust it */
             .navbar { margin-bottom: 2rem; }
         }
     </style>
@@ -175,8 +187,8 @@
     <div class="left-pane">
         
         <div class="navbar">
-            <div class="logo">MTS AI</div>
-            <a href="https://music-therapy-aiml-tmsl.streamlit.app/" class="login-btn-small">Log In</a>
+           <img src="logo.jpeg" alt="MTS Logo" class="logo-img">
+            <a href="https://music-therapy-aiml-tmsl.streamlit.app/" class="login-btn-small">Log In/Sign Up</a>
         </div>
 
         <div class="content-wrapper">

@@ -1160,12 +1160,14 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                     st.session_state["_last_snapshot_key"] = None
                     st.session_state["_emotion_history"] = []
                     st.session_state["detected_mood"] = None
-                    # Clear the queue as well
-                    while not emotion_queue.empty():
-                        try:
-                            emotion_queue.get_nowait()
-                        except:
-                            break
+                    # Clear the queue as well (only if it exists)
+                    emotion_queue = st.session_state.get("_emotion_queue")
+                    if emotion_queue is not None and isinstance(emotion_queue, Queue):
+                        while not emotion_queue.empty():
+                            try:
+                                emotion_queue.get_nowait()
+                            except:
+                                break
         else:
             st.info("📊 No emotion detected yet. Capture a snapshot to get started!")
 
@@ -1185,6 +1187,12 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         with col2:
             if st.button("Use This Mood", key="webcam_lock", disabled=not normalized_last):
                 st.session_state["detected_mood"] = normalized_last
+                # Clear old journey data to force recalculation with new mood
+                st.session_state.pop("emotion_path", None)
+                st.session_state.pop("current_playlist", None)
+                st.session_state.pop("current_from", None)
+                st.session_state.pop("current_to", None)
+                st.session_state["current_transition_step"] = 0
                 st.success(f"✅ Using {normalized_last.title()} as starting mood!")
 
     detected = st.session_state.get("detected_mood")
