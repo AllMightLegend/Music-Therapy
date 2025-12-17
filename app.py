@@ -1738,13 +1738,13 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         text_color = "#0f172a"
         grid_color = "#cbd5e1"
         spine_color = "#94a3b8"
-        bg_color = "rgba(248, 250, 252, 0.5)"
+        bg_color = (0.97, 0.98, 0.99, 0.5)  # RGBA tuple for light background
         empty_text_color = "#64748b"
     else:
         text_color = "white"
         grid_color = "white"
         spine_color = "white"
-        bg_color = "none"
+        bg_color = (0, 0, 0, 0)  # Transparent RGBA tuple
         empty_text_color = "white"
     
     # Success Rate Trend - Simple and clear for therapists
