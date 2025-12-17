@@ -1793,9 +1793,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         legend.get_frame().set_edgecolor(spine_color)
         
         plt.tight_layout()
-        # Use unique key based on data to prevent caching
-        chart_key = f"success_trend_{len(history_df)}_{hash(str(history_df['timestamp'].max()))}"
-        st.pyplot(fig, transparent=True, key=chart_key, use_container_width=True)
+        st.pyplot(fig, clear_figure=True)
         plt.close(fig)
         st.caption("📊 Rolling average of positive feedback (last 5 sessions)")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1852,9 +1850,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         
         ax.axis("equal")
         plt.tight_layout()
-        # Use unique key based on feedback data
-        pie_key = f"feedback_pie_{len(history_df)}_{hash(str(feedback_counts.to_dict()))}"
-        st.pyplot(fig, transparent=True, key=pie_key, use_container_width=True)
+        st.pyplot(fig, clear_figure=True)
         plt.close(fig)
         st.caption("🎯 Overall session satisfaction ratings")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1908,9 +1904,7 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         ax.grid(axis="x", linestyle="--", alpha=0.15, color=grid_color, linewidth=1)
         
         plt.tight_layout()
-        # Use unique key based on journey data
-        journey_key = f"journeys_{len(journey_counts)}_{hash(str(journey_counts.to_dict()))}"
-        st.pyplot(fig, transparent=True, key=journey_key, use_container_width=True)
+        st.pyplot(fig, clear_figure=True)
         plt.close(fig)
     else:
         st.info("Complete more sessions to see journey patterns")
