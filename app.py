@@ -1729,6 +1729,24 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
 
     chart_cols = st.columns(2)
     
+    # Determine theme for chart colors
+    current_theme = st.session_state.get("theme", "dark")
+    is_light_theme = current_theme == "light"
+    
+    # Theme-adaptive colors
+    if is_light_theme:
+        text_color = "#0f172a"
+        grid_color = "#cbd5e1"
+        spine_color = "#94a3b8"
+        bg_color = "rgba(248, 250, 252, 0.5)"
+        empty_text_color = "#64748b"
+    else:
+        text_color = "white"
+        grid_color = "white"
+        spine_color = "white"
+        bg_color = "none"
+        empty_text_color = "white"
+    
     # Success Rate Trend - Simple and clear for therapists
     with chart_cols[0]:
         st.markdown('<div class="chart-frame"><h4>Session Success Trend</h4>', unsafe_allow_html=True)
@@ -1736,83 +1754,139 @@ def render_progress_dashboard(profile: Dict[str, Any]) -> None:
         history_df['is_positive'] = history_df["feedback_emoji"].str.lower().eq("happy").astype(int)
         history_df['rolling_success'] = history_df['is_positive'].rolling(window=min(5, len(history_df)), min_periods=1).mean() * 100
         
-        fig, ax = plt.subplots(figsize=(6, 3), facecolor="none")
-        ax.set_facecolor("none")
-        ax.plot(history_df["timestamp"], history_df['rolling_success'], color="#4ade80", linewidth=2.5, marker="o", markersize=5)
-        ax.fill_between(history_df["timestamp"], history_df['rolling_success'], color="#4ade80", alpha=0.2)
-        ax.axhline(y=70, color='#fbbf24', linestyle='--', linewidth=1.5, alpha=0.5, label='Target: 70%')
-        ax.set_ylabel("Success Rate (%)", color="white", fontsize=10)
+        fig, ax = plt.subplots(figsize=(6, 3.2), facecolor=bg_color)
+        ax.set_facecolor(bg_color)
+        
+        # Plot line with gradient effect
+        ax.plot(history_df["timestamp"], history_df['rolling_success'], 
+                color="#10b981", linewidth=3, marker="o", markersize=6, 
+                markerfacecolor="#10b981", markeredgecolor="white", markeredgewidth=2,
+                label="Success Rate", zorder=3)
+        ax.fill_between(history_df["timestamp"], history_df['rolling_success'], 
+                        color="#10b981", alpha=0.15, zorder=2)
+        
+        # Target line
+        ax.axhline(y=70, color='#f59e0b', linestyle='--', linewidth=2, 
+                   alpha=0.7, label='Target: 70%', zorder=1)
+        
+        ax.set_ylabel("Success Rate (%)", color=text_color, fontsize=11, fontweight=600)
         ax.set_ylim(0, 105)
-        ax.grid(axis="y", linestyle="--", alpha=0.25)
-        ax.tick_params(axis="x", rotation=20, labelsize=8, colors="white")
-        ax.tick_params(axis="y", labelsize=9, colors="white")
+        ax.grid(axis="y", linestyle="--", alpha=0.15, color=grid_color, linewidth=1)
+        ax.tick_params(axis="x", rotation=25, labelsize=9, colors=text_color)
+        ax.tick_params(axis="y", labelsize=10, colors=text_color)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_color("white")
-        ax.spines["left"].set_color("white")
-        ax.legend(loc='upper left', fontsize=8, framealpha=0.3, facecolor='gray')
+        ax.spines["bottom"].set_color(spine_color)
+        ax.spines["bottom"].set_linewidth(1.5)
+        ax.spines["left"].set_color(spine_color)
+        ax.spines["left"].set_linewidth(1.5)
+        
+        legend = ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
+        legend.get_frame().set_facecolor(bg_color if is_light_theme else 'gray')
+        legend.get_frame().set_edgecolor(spine_color)
+        
+        plt.tight_layout()
         st.pyplot(fig, transparent=True)
         plt.close(fig)
-        st.caption("Rolling average of positive feedback (last 5 sessions)")
+        st.caption("📊 Rolling average of positive feedback (last 5 sessions)")
         st.markdown("</div>", unsafe_allow_html=True)
 
     # Feedback Mix Pie Chart
     with chart_cols[1]:
         st.markdown('<div class="chart-frame"><h4>Feedback Distribution</h4>', unsafe_allow_html=True)
         feedback_counts = history_df["feedback_emoji"].value_counts()
-        fig, ax = plt.subplots(figsize=(4, 3.2), facecolor="none")
-        ax.set_facecolor("none")
+        fig, ax = plt.subplots(figsize=(4.5, 3.4), facecolor=bg_color)
+        ax.set_facecolor(bg_color)
+        
         if feedback_counts.empty:
             ax.axis("off")
-            ax.text(0.5, 0.5, "No feedback yet", ha="center", va="center", fontsize=10, color="white")
+            ax.text(0.5, 0.5, "No feedback yet", ha="center", va="center", 
+                   fontsize=11, color=empty_text_color, fontweight=500)
         else:
-            colors = ["#4ade80", "#fbbf24", "#f87171"]  # Green (Great), Yellow (Okay), Red (Poor)
+            # Modern color palette
+            colors = ["#10b981", "#f59e0b", "#ef4444"]  # Emerald, Amber, Red
+            
             wedges, texts, autotexts = ax.pie(
                 feedback_counts,
                 labels=[label.title() for label in feedback_counts.index],
                 autopct="%1.0f%%",
                 startangle=90,
                 colors=colors[: len(feedback_counts)],
-                wedgeprops={"linewidth": 1, "edgecolor": "white"},
-                textprops={"fontsize": 9, "color": "white"},
+                wedgeprops={"linewidth": 2, "edgecolor": "white"},
+                textprops={"fontsize": 10, "color": text_color, "fontweight": 600},
+                pctdistance=0.75
             )
-            centre_circle = plt.Circle((0, 0), 0.55, fc="white")
+            
+            # Donut hole with gradient effect
+            if is_light_theme:
+                centre_circle = plt.Circle((0, 0), 0.65, fc="#f8fafc", ec="#e2e8f0", linewidth=2)
+            else:
+                centre_circle = plt.Circle((0, 0), 0.65, fc="#1e293b", ec="#334155", linewidth=2)
             fig.gca().add_artist(centre_circle)
+            
+            # Style percentage text
             for autotext in autotexts:
                 autotext.set_color("white")
+                autotext.set_fontweight(700)
+                autotext.set_fontsize(10)
+            
+            # Style labels
             for text in texts:
-                text.set_color("white")
+                text.set_color(text_color)
+                text.set_fontweight(600)
+        
         ax.axis("equal")
+        plt.tight_layout()
         st.pyplot(fig, transparent=True)
         plt.close(fig)
-        st.caption("Overall session satisfaction ratings")
+        st.caption("🎯 Overall session satisfaction ratings")
         st.markdown("</div>", unsafe_allow_html=True)
 
     # Common Emotional Journeys - Very helpful for therapists
     st.markdown('<div class="chart-frame"><h4>Most Common Emotional Journeys</h4>', unsafe_allow_html=True)
-    st.markdown('<p style="color: #a0aec0; font-size: 14px; margin-bottom: 10px;">Understanding frequent transitions helps plan future sessions</p>', unsafe_allow_html=True)
+    
+    if is_light_theme:
+        st.markdown('<p style="color: #64748b; font-size: 14px; margin-bottom: 12px; font-weight: 500;">Understanding frequent transitions helps plan future sessions</p>', unsafe_allow_html=True)
+    else:
+        st.markdown('<p style="color: #a0aec0; font-size: 14px; margin-bottom: 12px;">Understanding frequent transitions helps plan future sessions</p>', unsafe_allow_html=True)
     
     # Create journey combinations
     history_df['journey'] = history_df['start_mood'].str.title() + ' → ' + history_df['target_mood'].str.title()
     journey_counts = history_df['journey'].value_counts().head(6)
     
     if not journey_counts.empty:
-        fig, ax = plt.subplots(figsize=(10, 3.5), facecolor="none")
-        ax.set_facecolor("none")
-        bars = ax.barh(journey_counts.index, journey_counts.values, color="#8b5cf6", alpha=0.85)
+        fig, ax = plt.subplots(figsize=(10, 4), facecolor=bg_color)
+        ax.set_facecolor(bg_color)
         
-        # Add count labels on bars
+        # Gradient colors for bars
+        colors_gradient = plt.cm.viridis(np.linspace(0.3, 0.9, len(journey_counts)))
+        if is_light_theme:
+            colors_gradient = ["#6366f1", "#8b5cf6", "#a855f7", "#c026d3", "#d946ef", "#e879f9"][:len(journey_counts)]
+        
+        bars = ax.barh(journey_counts.index, journey_counts.values, 
+                      color=colors_gradient, alpha=0.9, height=0.7)
+        
+        # Add gradient effect to bars
+        for bar in bars:
+            bar.set_edgecolor("white" if is_light_theme else "#1e293b")
+            bar.set_linewidth(1.5)
+        
+        # Add count labels on bars with better styling
         for i, (bar, count) in enumerate(zip(bars, journey_counts.values)):
-            ax.text(count + 0.3, i, f'{int(count)}x', va='center', color='white', fontsize=9, fontweight='bold')
+            ax.text(count + 0.15, i, f'{int(count)}x', 
+                   va='center', color=text_color, fontsize=10, fontweight='bold')
         
-        ax.set_xlabel("Number of Sessions", color="white", fontsize=10)
-        ax.tick_params(axis="y", labelsize=9, colors="white")
-        ax.tick_params(axis="x", labelsize=9, colors="white")
+        ax.set_xlabel("Number of Sessions", color=text_color, fontsize=11, fontweight=600)
+        ax.tick_params(axis="y", labelsize=10, colors=text_color)
+        ax.tick_params(axis="x", labelsize=10, colors=text_color)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_color("white")
-        ax.spines["left"].set_color("white")
-        ax.grid(axis="x", linestyle="--", alpha=0.2)
+        ax.spines["bottom"].set_color(spine_color)
+        ax.spines["bottom"].set_linewidth(1.5)
+        ax.spines["left"].set_color(spine_color)
+        ax.spines["left"].set_linewidth(1.5)
+        ax.grid(axis="x", linestyle="--", alpha=0.15, color=grid_color, linewidth=1)
+        
         plt.tight_layout()
         st.pyplot(fig, transparent=True)
         plt.close(fig)
