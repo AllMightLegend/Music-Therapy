@@ -80,18 +80,58 @@ def analyze_frame(frame_bgr) -> Optional[str]:
         return None
 
     try:
+        def _convert_to_bytes(img_data):
+            """Convert image data to JPEG bytes in multiple ways."""
+            # Already bytes - pass through
+            if isinstance(img_data, bytes):
+                return img_data
+            
+            # Try PIL Image
+            try:
+                from PIL import Image
+                if isinstance(img_data, Image.Image):
+                    # PIL Image → JPEG bytes
+                    buf = io.BytesIO()
+                    img_data.save(buf, format='JPEG')
+                    return buf.getvalue()
+            except Exception:
+                pass
+            
+            # Try numpy array with cv2
+            if cv2 is not None and np is not None:
+                try:
+                    _, buf = cv2.imencode('.jpg', img_data)
+                    return buf.tobytes()
+                except Exception:
+                    pass
+            
+            # Try converting numpy array to PIL Image manually
+            try:
+                from PIL import Image
+                import numpy as _np
+                if hasattr(img_data, 'shape') and len(img_data.shape) == 3:
+                    # Assume BGR numpy array, convert to RGB PIL Image
+                    if img_data.shape[2] == 3:  # BGR or RGB
+                        # Try BGR to RGB
+                        if cv2 is not None:
+                            rgb_array = cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB)
+                        else:
+                            # Manual BGR to RGB
+                            rgb_array = img_data[:, :, ::-1]
+                        pil_img = Image.fromarray(rgb_array, 'RGB')
+                        buf = io.BytesIO()
+                        pil_img.save(buf, format='JPEG')
+                        return buf.getvalue()
+            except Exception:
+                pass
+            
+            raise RuntimeError(f"Cannot convert image type {type(img_data)} to bytes. "
+                             f"Provide PIL Image, numpy array, or bytes. "
+                             f"cv2={'available' if cv2 else 'not available'}")
+        
         def _call_facepp(img_data):
             """Send image to Face++ API."""
-            # Handle different input formats
-            if isinstance(img_data, bytes):
-                image_bytes = img_data
-            elif cv2 is not None:
-                # numpy array in BGR
-                _, buf = cv2.imencode('.jpg', img_data)
-                image_bytes = buf.tobytes()
-            else:
-                # Can't convert without cv2
-                raise RuntimeError("cv2 not available and input is not bytes")
+            image_bytes = _convert_to_bytes(img_data)
             
             files = {'image_file': ('frame.jpg', io.BytesIO(image_bytes), 'image/jpeg')}
             data = {
