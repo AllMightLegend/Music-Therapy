@@ -1664,9 +1664,22 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                         mapping = getattr(_eb_core, "BEHAVIOR_TO_EMOTION", {}) or {}
                     except Exception:
                         mapping = {}
+                    # Log raw result to server logs for debugging
+                    try:
+                        print(f"[app.py] behavior_result: {behavior_result}")
+                    except Exception:
+                        pass
+
+                    try:
+                        from emotion_behavior.core import load_behavior_predictor
+                        predictor_loaded_now = load_behavior_predictor() is not None
+                    except Exception:
+                        predictor_loaded_now = False
+
                     detected_emotion = mapping.get(behavior_result.label, "calm")
+                    source_label = "Predictor" if predictor_loaded_now else "Motion/Optical Fallback"
                     st.success(
-                        f"Behavior: {behavior_result.label.title()} ({behavior_result.confidence:.2%}) → Mood: {detected_emotion.title()}"
+                        f"Behavior: {behavior_result.label.title()} ({behavior_result.confidence:.2%}) → Mood: {detected_emotion.title()}  —  Source: {source_label}"
                     )
                     st.json(behavior_result.scores)
                     
