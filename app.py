@@ -1208,6 +1208,25 @@ def render_new_session(profile: Dict[str, Any]) -> None:
             except Exception as e:
                 st.write(f"Predictor load threw: {e}")
             st.write(f"Predictor loaded: {predictor is not None}")
+            # Allow uploading a checkpoint directly from the UI when predictor missing
+            if not (predictor is not None):
+                st.info("Upload a pretrained `behavior_model.pt` to enable the predictor on this deployment.")
+                upload = st.file_uploader("Upload behavior_model.pt", type=["pt"], key="upload_behavior_model")
+                if upload is not None:
+                    try:
+                        dest = Path(behavior_path)
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        with open(dest, "wb") as f:
+                            f.write(upload.getbuffer())
+                        st.success(f"Saved checkpoint to {dest}")
+                        try:
+                            newp = load_behavior_predictor(behavior_path)
+                            st.success(f"Predictor loaded: {newp is not None}")
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error(f"Loading predictor failed: {e}")
+                    except Exception as e:
+                        st.error(f"Failed to save uploaded file: {e}")
         except Exception:
             # If import fails, show minimal hint
             st.write("Behavior diagnostics: unable to import emotion_behavior.core")
