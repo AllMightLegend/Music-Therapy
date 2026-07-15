@@ -1129,18 +1129,47 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                 st.info(f"**Using:** {_loaded_detector_name}")
             # Check for API key configuration
             if os.getenv("FACEPP_API_KEY") and os.getenv("FACEPP_API_SECRET"):
-                st.info("✓ Face++ API credentials configured")
+                st.success("✓ Face++ API credentials configured")
             if os.getenv("USE_HUME") == "1":
-                st.info("✓ Hume API enabled")
+                st.success("✓ Hume API enabled")
         else:
-            st.warning("⚠️ Emotion detection is NOT available")
+            st.error("❌ Emotion detection is NOT available")
+            
+            # Check if running on Streamlit Cloud
+            is_streamlit_cloud = "streamlit.app" in os.getenv("STREAMLIT_SERVER_HEADLESS", "false")
+            
+            if is_streamlit_cloud:
+                st.warning("**Running on Streamlit Cloud - Credentials Not Found**")
+                st.info("""
+                ### ✅ To Fix:
+                1. Go to your **Streamlit Cloud Dashboard**
+                   - https://share.streamlit.io/
+                   - Select your Music-Therapy app
+                
+                2. Click **Settings ⚙️** (gear icon in top right)
+                
+                3. Click **Secrets** in the sidebar
+                
+                4. Copy your Face++ credentials:
+                   ```toml
+                   FACEPP_API_KEY = "YOUR_KEY"
+                   FACEPP_API_SECRET = "YOUR_SECRET"
+                   ```
+                
+                5. **Save** - App auto-restarts with credentials! ✓
+                
+                📖 See `.streamlit/secrets.toml.example` in GitHub repo for template
+                """)
+            else:
+                st.info("No API credentials detected (Face++/Hume keys not set)")
+                st.info("💡 **Solution:** Set `FACEPP_API_KEY` and `FACEPP_API_SECRET` in `.env` file")
+            
             if _dependency_errors:
                 st.error("**Failed imports:**")
                 for name, error in _dependency_errors:
                     st.code(f"{name}: {error}", language="text")
-            else:
-                st.info("No API credentials detected (Face++/Hume keys not set)")
-            st.info("💡 **Solution:** Use Manual Input mode or configure Face++/Hume credentials")
+            
+            st.info("**Fallback:** Use Manual Input mode (no AI required)")
     
     # Auto-detect mode: if detector unavailable, force manual mode
     mode = st.session_state.get("mode")
