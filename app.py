@@ -1157,6 +1157,23 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                    ```
                 
                 5. **Save** - App auto-restarts with credentials! ✓
+        # Behavior model diagnostics
+        try:
+            from emotion_behavior.core import load_behavior_predictor
+            behavior_path = os.getenv("BEHAVIOR_MODEL_PATH", "artifacts/behavior_model.pt")
+            st.markdown("**Behavior model diagnostics:**")
+            st.write(f"Behavior model path: {behavior_path}")
+            exists = Path(behavior_path).exists()
+            st.write(f"Checkpoint exists: {exists}")
+            predictor = None
+            try:
+                predictor = load_behavior_predictor(behavior_path)  # returns None if missing
+            except Exception as e:
+                st.write(f"Predictor load threw: {e}")
+            st.write(f"Predictor loaded: {predictor is not None}")
+        except Exception:
+            # If import fails, show minimal hint
+            st.write("Behavior diagnostics: unable to import emotion_behavior.core")
                 
                 📖 See `.streamlit/secrets.toml.example` in GitHub repo for template
                 """)
