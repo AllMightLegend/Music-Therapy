@@ -1552,12 +1552,8 @@ def render_new_session(profile: Dict[str, Any]) -> None:
                         temp_file.write(behavior_upload.getbuffer())
                         temp_path = temp_file.name
                     with st.spinner("Analyzing video behavior..."):
-                        if detect_behavior_from_source is None:
-                            raise RuntimeError(
-                                "Behavior analyzer is unavailable. "
-                                "Place a pretrained behavior model checkpoint at artifacts/behavior_model.pt "
-                                "or set BEHAVIOR_MODEL_PATH in .env to your checkpoint file."
-                            )
+                        # detect_behavior_from_source always exists and has fallback logic
+                        # (motion detection if model unavailable)
                         # Increase analysis window to better detect repetitive stimming
                         behavior_result = detect_behavior_from_source(
                             temp_path,
@@ -1607,12 +1603,8 @@ def render_new_session(profile: Dict[str, Any]) -> None:
             if stream_url and st.button("Analyze stream", key="analyze_stream_behavior"):
                 try:
                     with st.spinner("Analyzing stream behavior..."):
-                        if detect_behavior_from_source is None:
-                            raise RuntimeError(
-                                "Behavior analyzer is unavailable. "
-                                "Place a pretrained behavior model checkpoint at artifacts/behavior_model.pt "
-                                "or set BEHAVIOR_MODEL_PATH in .env to your checkpoint file."
-                            )
+                        # detect_behavior_from_source always exists and has fallback logic
+                        # (motion detection if model unavailable)
                         # For streams use a longer window to improve detection robustness
                         behavior_result = detect_behavior_from_source(
                             stream_url,

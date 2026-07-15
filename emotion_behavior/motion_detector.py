@@ -11,8 +11,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
-import cv2
-import numpy as np
+# Optional imports - don't fail if these are missing
+cv2 = None
+np = None
+try:
+    import cv2 as _cv2
+    import numpy as _np
+    cv2 = _cv2
+    np = _np
+except (ImportError, OSError) as e:
+    print(f"[motion_detector] OpenCV/NumPy import failed (disabling optical flow): {e}")
 
 try:
     import mediapipe as mp
@@ -45,6 +53,11 @@ class OpticalFlowBehaviorDetector:
         analysis_seconds: int = 10,
     ) -> List[np.ndarray]:
         """Extract frames from video."""
+        if cv2 is None:
+            raise RuntimeError(
+                "OpenCV (cv2) not available. Install with: pip install opencv-python"
+            )
+        
         capture = cv2.VideoCapture(str(video_path))
         if not capture.isOpened():
             raise RuntimeError(f"Could not open video: {video_path}")
