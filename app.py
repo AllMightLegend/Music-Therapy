@@ -1107,6 +1107,24 @@ def render_new_session(profile: Dict[str, Any]) -> None:
     st.caption(
         "Detect the child's mood and receive a personalized therapeutic music playlist."
     )
+    # Visible diagnostics banner (always shown) to aid debugging on deployments
+    try:
+        from emotion_behavior.core import load_behavior_predictor
+        behavior_path = os.getenv("BEHAVIOR_MODEL_PATH", "artifacts/behavior_model.pt")
+        checkpoint_exists = Path(behavior_path).exists()
+        predictor_loaded = False
+        try:
+            predictor_loaded = load_behavior_predictor(behavior_path) is not None
+        except Exception:
+            predictor_loaded = False
+        import importlib
+        md = importlib.import_module('emotion_behavior.motion_detector')
+        has_mediapipe = getattr(md, 'HAS_MEDIAPIPE', False)
+        cv2_available = getattr(md, 'cv2', None) is not None
+        np_available = getattr(md, 'np', None) is not None
+        st.info(f"Diag — model_path: {behavior_path} | exists: {checkpoint_exists} | predictor_loaded: {predictor_loaded} | MediaPipe: {has_mediapipe} | OpenCV: {cv2_available} | NumPy: {np_available}")
+    except Exception:
+        st.info("Diag — behavior diagnostics unavailable (will appear in System Status).")
     
     # Add helpful notice about detection methods
     with st.expander("ℹ️ About Mood Detection Methods", expanded=False):
