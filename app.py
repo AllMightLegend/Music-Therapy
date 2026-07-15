@@ -131,6 +131,25 @@ except (ImportError, OSError, AttributeError) as exc:
     _loaded_detector_name = None
 
 try:
+    # If a remote behavior model URL is provided (useful for Streamlit Cloud),
+    # try to download it into the artifacts folder so the predictor can load.
+    behavior_model_url = os.getenv("BEHAVIOR_MODEL_URL")
+    behavior_model_path = Path(os.getenv("BEHAVIOR_MODEL_PATH", "artifacts/behavior_model.pt"))
+    if behavior_model_url and not behavior_model_path.exists():
+        try:
+            import requests
+
+            behavior_model_path.parent.mkdir(parents=True, exist_ok=True)
+            with requests.get(behavior_model_url, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                with open(behavior_model_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+            print(f"[app.py] Downloaded behavior model from {behavior_model_url} to {behavior_model_path}")
+        except Exception as _e:
+            print(f"[app.py] Failed to download behavior model: {_e}")
+
     from emotion_behavior.core import detect_behavior_from_source
 except Exception as exc:
     _dependency_errors.append(("emotion_behavior", str(exc)))
