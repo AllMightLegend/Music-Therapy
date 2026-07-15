@@ -1193,6 +1193,24 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         except Exception:
             # If import fails, show minimal hint
             st.write("Behavior diagnostics: unable to import emotion_behavior.core")
+        # Motion backend diagnostics (MediaPipe / OpenCV)
+        try:
+            import emotion_behavior.motion_detector as _md
+            has_mediapipe = getattr(_md, 'HAS_MEDIAPIPE', False)
+            cv2_available = getattr(_md, 'cv2', None) is not None
+            np_available = getattr(_md, 'np', None) is not None
+            st.markdown("**Motion backend diagnostics:**")
+            st.write(f"MediaPipe available: {has_mediapipe}")
+            st.write(f"OpenCV available: {cv2_available}")
+            st.write(f"NumPy available: {np_available}")
+            try:
+                if has_mediapipe:
+                    import mediapipe as _mp
+                    st.write(f"MediaPipe version: {_mp.__version__}")
+            except Exception:
+                pass
+        except Exception:
+            st.write("Motion diagnostics: unable to import emotion_behavior.motion_detector")
                 
                 📖 See `.streamlit/secrets.toml.example` in GitHub repo for template
                 """)
