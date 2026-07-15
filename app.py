@@ -1132,7 +1132,7 @@ def render_new_session(profile: Dict[str, Any]) -> None:
     st.caption(
         "Detect the child's mood and receive a personalized therapeutic music playlist."
     )
-    # Visible diagnostics banner (always shown) to aid debugging on deployments
+    # Visible diagnostics banner (previously always shown). Hide by default.
     try:
         from emotion_behavior.core import load_behavior_predictor
         behavior_path = os.getenv("BEHAVIOR_MODEL_PATH", "artifacts/behavior_model.pt")
@@ -1147,9 +1147,12 @@ def render_new_session(profile: Dict[str, Any]) -> None:
         has_mediapipe = getattr(md, 'HAS_MEDIAPIPE', False)
         cv2_available = getattr(md, 'cv2', None) is not None
         np_available = getattr(md, 'np', None) is not None
-        st.info(f"Diag — model_path: {behavior_path} | exists: {checkpoint_exists} | predictor_loaded: {predictor_loaded} | MediaPipe: {has_mediapipe} | OpenCV: {cv2_available} | NumPy: {np_available}")
+        # Only show diagnostics when explicitly enabled via env var
+        if os.getenv("SHOW_DIAGNOSTICS", "0") == "1":
+            st.info(f"Diag — model_path: {behavior_path} | exists: {checkpoint_exists} | predictor_loaded: {predictor_loaded} | MediaPipe: {has_mediapipe} | OpenCV: {cv2_available} | NumPy: {np_available}")
     except Exception:
-        st.info("Diag — behavior diagnostics unavailable (will appear in System Status).")
+        if os.getenv("SHOW_DIAGNOSTICS", "0") == "1":
+            st.info("Diag — behavior diagnostics unavailable (will appear in System Status).")
     
     # Add helpful notice about detection methods
     with st.expander("ℹ️ About Mood Detection Methods", expanded=False):
