@@ -4,7 +4,8 @@ streamlit>=1.28.0
 # Realtime webcam
 streamlit-webrtc>=0.44.0
 av>=10.0.0
-opencv-python-headless==4.8.1.78
+# Use contrib headless build to match MediaPipe expectations in cloud
+opencv-contrib-python-headless==4.8.1.78
 
 # Data & ML
 pandas>=2.0.0
@@ -28,4 +29,4 @@ Pillow>=10.0.0
 ultralytics>=8.0.0
 
 # Behavior detection (pose estimation for stimming detection)
-mediapipe>=0.10.0
+mediapipe==0.10.35
