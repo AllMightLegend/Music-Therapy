@@ -1,18 +1,40 @@
 """
-Emotion detection module using DeepFace (pretrained models).
+Emotion detection module with Face++ support and multiple fallbacks.
 
-This module detects facial emotions in real-time from images and video frames.
-DeepFace uses state-of-the-art pretrained models and doesn't require any API keys.
+Priority:
+1. Face++ API (cloud-compatible, no local ML models needed)
+2. DeepFace (local, high accuracy)
+3. Local emotion model (lightweight)
+4. OpenCV cascade (basic fallback)
 
-Emotions detected: angry, fear, neutral, sad, disgust, happy, surprise
+Face++ is ideal for Streamlit Cloud since it's just HTTP API calls.
 """
 
 import os
-import cv2
-import numpy as np
 from typing import Optional, Dict, List, Tuple
-from dotenv import load_dotenv
-from PIL import Image
+
+# Optional imports - don't fail if these are missing, just disable features
+cv2 = None
+np = None
+try:
+    import cv2 as _cv2
+    import numpy as _np
+    cv2 = _cv2
+    np = _np
+except (ImportError, OSError) as e:
+    print(f"[emotion_detector] OpenCV/NumPy import failed (disabling local face detection): {e}")
+
+# Load environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 try:
     from transformers import AutoImageProcessor, AutoModelForImageClassification
@@ -20,19 +42,19 @@ try:
 except Exception:
     TRANSFORMERS_AVAILABLE = False
 
-# Try to import Face++ API detector (cloud-compatible)
+# PRIORITY 1: Try to import Face++ API detector (cloud-compatible)
+# This should ALWAYS be attempted first and doesn't require cv2/numpy
 FACEPP_AVAILABLE = False
 FACEPP_ERROR = None
 try:
     from emotion_detector_facepp import analyze_frame as facepp_analyze_frame
     FACEPP_AVAILABLE = True
-    print("[emotion_detector] Face++ API detector available [OK]")
+    print("[emotion_detector] ✓ Face++ API detector available")
 except ImportError as e:
     FACEPP_ERROR = str(e)
-    print(f"[emotion_detector] Face++ detector not available: {e}")
+    print(f"[emotion_detector] Face++ detector unavailable: {e}")
 
-load_dotenv()
-
+# Read configuration values
 EMOTION_CONFIDENCE_THRESHOLD = float(os.getenv("EMOTION_CONFIDENCE_THRESHOLD", "0.35"))
 SECONDARY_EMOTION_THRESHOLD = float(os.getenv("EMOTION_SECONDARY_THRESHOLD", "0.22"))
 LOCAL_MODEL_CONFIDENCE_THRESHOLD = float(os.getenv("LOCAL_EMOTION_CONFIDENCE_THRESHOLD", "0.40"))

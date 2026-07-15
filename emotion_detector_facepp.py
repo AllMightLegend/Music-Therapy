@@ -4,14 +4,25 @@ Lightweight Face++ (Face Plus Plus) emotion detector adapter.
 Usage: set `FACEPP_API_KEY` and `FACEPP_API_SECRET` in env or Streamlit Secrets.
 
 This module sends the uploaded frame to Face++ Detect API and returns a normalized
-emotion label compatible with the app (`calm`, `happy`, `sad`, `angry`, `fearful`, `surprised`, `focused`).
+emotion label compatible with the app.
+
+Works on Streamlit Cloud - only requires requests, not heavy ML libraries.
 """
 import os
 import io
-import cv2
 import requests
-import numpy as np
 from typing import Optional
+
+# Optional imports for local face detection fallback
+cv2 = None
+np = None
+try:
+    import cv2 as _cv2
+    import numpy as _np
+    cv2 = _cv2
+    np = _np
+except (ImportError, OSError):
+    pass
 
 _LAST_ERROR: Optional[str] = None
 
@@ -51,9 +62,15 @@ def _map_facepp_emotion(facepp_emotion: dict) -> str:
     }
     return mapping.get(label, 'calm')
 
-def analyze_frame(frame_bgr: np.ndarray) -> Optional[str]:
-    """Send the frame to Face++ and return a normalized emotion label.
-    Returns None on failure.
+def analyze_frame(frame_bgr) -> Optional[str]:
+    """
+    Send the frame to Face++ and return a normalized emotion label.
+    
+    Args:
+        frame_bgr: numpy array (BGR) or PIL Image or bytes
+        
+    Returns:
+        Normalized emotion label or None on failure
     """
     global _LAST_ERROR
     _LAST_ERROR = None
@@ -63,9 +80,20 @@ def analyze_frame(frame_bgr: np.ndarray) -> Optional[str]:
         return None
 
     try:
-        def _call_facepp(img_bgr: np.ndarray):
-            _, buf = cv2.imencode('.jpg', img_bgr)
-            files = {'image_file': ('frame.jpg', io.BytesIO(buf.tobytes()), 'image/jpeg')}
+        def _call_facepp(img_data):
+            """Send image to Face++ API."""
+            # Handle different input formats
+            if isinstance(img_data, bytes):
+                image_bytes = img_data
+            elif cv2 is not None:
+                # numpy array in BGR
+                _, buf = cv2.imencode('.jpg', img_data)
+                image_bytes = buf.tobytes()
+            else:
+                # Can't convert without cv2
+                raise RuntimeError("cv2 not available and input is not bytes")
+            
+            files = {'image_file': ('frame.jpg', io.BytesIO(image_bytes), 'image/jpeg')}
             data = {
                 'api_key': FACEPP_API_KEY,
                 'api_secret': FACEPP_API_SECRET,
@@ -80,8 +108,8 @@ def analyze_frame(frame_bgr: np.ndarray) -> Optional[str]:
         j = _call_facepp(frame_bgr)
         faces = j.get('faces', [])
 
-        # If no faces detected, try a local face-crop using OpenCV Haar cascade and retry
-        if not faces:
+        # If no faces detected and cv2 available, try a local face-crop fallback
+        if not faces and cv2 is not None:
             try:
                 cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
                 gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
@@ -97,8 +125,8 @@ def analyze_frame(frame_bgr: np.ndarray) -> Optional[str]:
                     cropped = frame_bgr[y0:y1, x0:x1]
                     j = _call_facepp(cropped)
                     faces = j.get('faces', [])
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[emotion_detector_facepp] Cascade fallback failed: {e}")
 
         if not faces:
             _set_error('Face++: no face detected')

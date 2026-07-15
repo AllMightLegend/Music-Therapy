@@ -63,6 +63,9 @@ try:
     import importlib
     import os as _os
 
+    # Track which detector was loaded for diagnostics
+    _loaded_detector_name = None
+
     # Prioritize Face++ (if API keys are set), then fall back to Hume or local detector
     emotion_detector = None
 
@@ -72,31 +75,37 @@ try:
         try:
             import emotion_detector_facepp as ed_facepp
             emotion_detector = ed_facepp
+            _loaded_detector_name = "Face++ API"
             print("[app.py] ✓ Using Face++ for emotion detection")
         except Exception as e:
             print(f"[app.py] Face++ import failed: {e}")
+            _dependency_errors.append(("emotion_detector_facepp", str(e)))
             emotion_detector = None
 
-    # If Face++ not configured, try Hume (if enabled)
+    # If Face++ not available, try Hume (if enabled)
     if emotion_detector is None:
         try:
             _use_hume = _os.getenv("USE_HUME", "0") == "1"
             if _use_hume:
                 import emotion_detector_fixed as ed_fixed
                 emotion_detector = ed_fixed
+                _loaded_detector_name = "Hume API"
                 print("[app.py] ✓ Using Hume API for emotion detection")
         except Exception as e:
             print(f"[app.py] Hume import failed: {e}")
+            _dependency_errors.append(("emotion_detector_fixed", str(e)))
             emotion_detector = None
 
-    # Final fallback: local DeepFace-based detector (may be heavy)
+    # Final fallback: local DeepFace-based detector
     if emotion_detector is None:
         try:
             import emotion_detector as ed_default
             emotion_detector = ed_default
+            _loaded_detector_name = "Local DeepFace Detector"
             print("[app.py] ✓ Using local emotion detector")
         except Exception as e:
             print(f"[app.py] Local detector import failed: {e}")
+            _dependency_errors.append(("emotion_detector", str(e)))
             emotion_detector = None
 
     # Only reload if successfully imported
@@ -104,9 +113,13 @@ try:
         emotion_detector = importlib.reload(emotion_detector)
         analyze_frame = getattr(emotion_detector, "analyze_frame", None)
         get_last_detection_error = getattr(emotion_detector, "get_last_detection_error", lambda: None)
+        if analyze_frame is None:
+            print(f"[app.py] ✗ {_loaded_detector_name} loaded but no analyze_frame function")
+            emotion_detector = None
+            _loaded_detector_name = None
     else:
         # No detector available
-        print("[app.py] ✗ No emotion detector available")
+        print("[app.py] ✗ No emotion detector available - all backends failed to import")
         analyze_frame = None
         get_last_detection_error = lambda: None
 except (ImportError, OSError, AttributeError) as exc:
@@ -115,6 +128,7 @@ except (ImportError, OSError, AttributeError) as exc:
     _dependency_errors.append(("emotion_detector", str(exc)))
     analyze_frame = None
     get_last_detection_error = lambda: None
+    _loaded_detector_name = None
 
 try:
     from emotion_behavior.core import detect_behavior_from_source
@@ -1110,9 +1124,23 @@ def render_new_session(profile: Dict[str, Any]) -> None:
     # Debug info for the user
     with st.expander("🔧 System Status", expanded=False):
         if detector_available:
-            st.success("✅ Emotion detection is AVAILABLE - Webcam mode enabled")
+            st.success(f"✅ Emotion detection is AVAILABLE")
+            if _loaded_detector_name:
+                st.info(f"**Using:** {_loaded_detector_name}")
+            # Check for API key configuration
+            if os.getenv("FACEPP_API_KEY") and os.getenv("FACEPP_API_SECRET"):
+                st.info("✓ Face++ API credentials configured")
+            if os.getenv("USE_HUME") == "1":
+                st.info("✓ Hume API enabled")
         else:
-            st.warning("⚠️ Emotion detection is NOT available - Manual mode recommended")
+            st.warning("⚠️ Emotion detection is NOT available")
+            if _dependency_errors:
+                st.error("**Failed imports:**")
+                for name, error in _dependency_errors:
+                    st.code(f"{name}: {error}", language="text")
+            else:
+                st.info("No API credentials detected (Face++/Hume keys not set)")
+            st.info("💡 **Solution:** Use Manual Input mode or configure Face++/Hume credentials")
     
     # Auto-detect mode: if detector unavailable, force manual mode
     mode = st.session_state.get("mode")
