@@ -154,6 +154,31 @@ try:
 except Exception as exc:
     _dependency_errors.append(("emotion_behavior", str(exc)))
     detect_behavior_from_source = None
+    # Attempt optional runtime installation of dependencies on cloud or when requested
+    try:
+        is_streamlit_cloud = "streamlit.app" in os.getenv("STREAMLIT_SERVER_HEADLESS", "false")
+        auto_install = os.getenv("AUTO_INSTALL_DEPS", "0") == "1"
+        if is_streamlit_cloud or auto_install:
+            import sys
+            import subprocess
+            pkgs = [
+                "mediapipe==0.10.0",
+                "opencv-python-headless==4.8.1.78",
+                "numpy>=1.24.0,<2.0.0",
+            ]
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install"] + pkgs)
+                # Retry import after install
+                import importlib
+                import emotion_behavior.core as _eb_core
+                importlib.reload(_eb_core)
+                detect_behavior_from_source = _eb_core.detect_behavior_from_source
+                # Remove dependency error if import succeeded
+                _dependency_errors = [e for e in _dependency_errors if e[0] != "emotion_behavior"]
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 st.set_page_config(page_title="Music Therapy Recommender", layout="wide")
