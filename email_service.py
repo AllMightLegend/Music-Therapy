@@ -75,10 +75,10 @@ to support children's emotional growth through personalized music recommendation
 
 Your Invitation Code: {invitation_code}
 
-Webapp Link: https://music-therapy-aiml-tmsl.streamlit.app/
+Webapp Link: https://music-therapy-aiml.streamlit.app/
 
 To get started:
-1. Visit https://music-therapy-aiml-tmsl.streamlit.app/
+1. Visit https://music-therapy-aiml.streamlit.app/
 2. Go to the "Parent Invitation" tab
 3. Enter your invitation code: {invitation_code}
 4. Create your account and password
@@ -223,7 +223,7 @@ If you have questions, please contact {therapist_name} directly.
             <h3>🚀 Getting Started</h3>
             <ol>
                 <li>Visit the <strong>Music Therapy Recommender</strong> app at:<br>
-                    <a href="https://music-therapy-aiml-tmsl.streamlit.app/" class="button" style="color: white; text-decoration: none; display: inline-block; margin-top: 10px;">Open Music Therapy App</a></li>
+                    <a href="https://music-therapy-aiml.streamlit.app/" class="button" style="color: white; text-decoration: none; display: inline-block; margin-top: 10px;">Open Music Therapy App</a></li>
                 <li>Go to the <strong>"Parent Invitation"</strong> tab</li>
                 <li>Enter your invitation code: <strong>{invitation_code}</strong></li>
                 <li>Create your account and password</li>
