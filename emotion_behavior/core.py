@@ -6,8 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-import cv2
-import numpy as np
+# Make cv2 and numpy optional to avoid import errors on headless/cloud environments
+cv2 = None
+np = None
+try:
+    import cv2 as _cv2
+    import numpy as _np
+    cv2 = _cv2
+    np = _np
+except (ImportError, OSError) as _err:
+    print(f"[emotion_behavior.core] Optional dependency missing: {str(_err)}")
 import torch
 from PIL import Image
 from torch import nn
